@@ -6,6 +6,11 @@
 	objectVersion = 77;
 	objects = {
 
+/* Begin PBXBuildFile section */
+		DEFE8FCA2FBCD3440018DF82 /* SwiftBox2D in Frameworks */ = {isa = PBXBuildFile; productRef = DEFE8FC92FBCD3440018DF82 /* SwiftBox2D */; };
+		DEFE8FCC2FBCD3440018DF82 /* box2d in Frameworks */ = {isa = PBXBuildFile; productRef = DEFE8FCB2FBCD3440018DF82 /* box2d */; };
+/* End PBXBuildFile section */
+
 /* Begin PBXFileReference section */
 		DEFE8FB62FBCD1C30018DF82 /* SpriteKit-Box2D.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = "SpriteKit-Box2D.app"; sourceTree = BUILT_PRODUCTS_DIR; };
 /* End PBXFileReference section */
@@ -23,6 +28,8 @@
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				DEFE8FCC2FBCD3440018DF82 /* box2d in Frameworks */,
+				DEFE8FCA2FBCD3440018DF82 /* SwiftBox2D in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -65,6 +72,8 @@
 			);
 			name = "SpriteKit-Box2D";
 			packageProductDependencies = (
+				DEFE8FC92FBCD3440018DF82 /* SwiftBox2D */,
+				DEFE8FCB2FBCD3440018DF82 /* box2d */,
 			);
 			productName = "SpriteKit-Box2D";
 			productReference = DEFE8FB62FBCD1C30018DF82 /* SpriteKit-Box2D.app */;
@@ -94,6 +103,9 @@
 			);
 			mainGroup = DEFE8FAD2FBCD1C30018DF82;
 			minimizedProjectReferenceProxies = 1;
+			packageReferences = (
+				DEFE8FC82FBCD3440018DF82 /* XCRemoteSwiftPackageReference "SwiftBox2D" */,
+			);
 			preferredProjectObjectVersion = 77;
 			productRefGroup = DEFE8FB72FBCD1C30018DF82 /* Products */;
 			projectDirPath = "";
@@ -274,7 +286,8 @@
 				REGISTER_APP_GROUPS = YES;
 				SDKROOT = auto;
 				STRING_CATALOG_GENERATE_SYMBOLS = YES;
-				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator macosx xros xrsimulator";
+				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator xros xrsimulator";
+				SUPPORTS_MACCATALYST = YES;
 				SWIFT_APPROACHABLE_CONCURRENCY = YES;
 				SWIFT_DEFAULT_ACTOR_ISOLATION = MainActor;
 				SWIFT_EMIT_LOC_STRINGS = YES;
@@ -318,7 +331,8 @@
 				REGISTER_APP_GROUPS = YES;
 				SDKROOT = auto;
 				STRING_CATALOG_GENERATE_SYMBOLS = YES;
-				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator macosx xros xrsimulator";
+				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator xros xrsimulator";
+				SUPPORTS_MACCATALYST = YES;
 				SWIFT_APPROACHABLE_CONCURRENCY = YES;
 				SWIFT_DEFAULT_ACTOR_ISOLATION = MainActor;
 				SWIFT_EMIT_LOC_STRINGS = YES;
@@ -351,6 +365,30 @@
 			defaultConfigurationName = Release;
 		};
 /* End XCConfigurationList section */
+
+/* Begin XCRemoteSwiftPackageReference section */
+		DEFE8FC82FBCD3440018DF82 /* XCRemoteSwiftPackageReference "SwiftBox2D" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/LuizZak/SwiftBox2D.git";
+			requirement = {
+				branch = main;
+				kind = branch;
+			};
+		};
+/* End XCRemoteSwiftPackageReference section */
+
+/* Begin XCSwiftPackageProductDependency section */
+		DEFE8FC92FBCD3440018DF82 /* SwiftBox2D */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = DEFE8FC82FBCD3440018DF82 /* XCRemoteSwiftPackageReference "SwiftBox2D" */;
+			productName = SwiftBox2D;
+		};
+		DEFE8FCB2FBCD3440018DF82 /* box2d */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = DEFE8FC82FBCD3440018DF82 /* XCRemoteSwiftPackageReference "SwiftBox2D" */;
+			productName = box2d;
+		};
+/* End XCSwiftPackageProductDependency section */
 	};
 	rootObject = DEFE8FAE2FBCD1C30018DF82 /* Project object */;
 }

@@ -11,7 +11,7 @@ import SwiftUI
 struct SpriteKit_Box2DApp: App {
     var body: some Scene {
         WindowGroup {
-            ContentView()
+            HomeView()
         }
     }
 }
