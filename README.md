@@ -1,6 +1,6 @@
 # SpriteKit Box2D
 
-This project explores integrating SpriteKit with Box2D version 3 for physics-based apps and simulation experiments.
+This project integrates Box2D version 3 with SpriteKit.
 
 ## Screenshots
 
