@@ -138,7 +138,7 @@ class JointsScene: SKScene {
     
     /// Camera
     let navCamera = NavigationCamera()
-    var cameraDragOnly = true
+    var cameraDragOnly = false
     
     /// Timing
     private let fixedTimestep: TimeInterval = 1/60
@@ -153,6 +153,12 @@ class JointsScene: SKScene {
     private let debugRenderer = Box2DDebugRenderer(pointsPerMeter: pointsPerMeter)
     var debugPhysics: Bool = false /// Warning, if there are too many nodes, app may crash or framerate may tank.
     
+    enum PhysicsCategory {
+        static let wall: UInt64 = 0x0001
+        static let chain: UInt64 = 0x0002
+        static let block: UInt64 = 0x0004
+    }
+    
     /// Entities
     private struct Entity {
         weak var node: SKNode?
@@ -160,6 +166,14 @@ class JointsScene: SKScene {
     }
     
     private var entities: [Entity] = []
+    
+    /// Layers
+    enum ZPosition {
+        static let background: CGFloat = 0
+        static let content: CGFloat = 1
+        static let viz: CGFloat = 2
+        static let UI: CGFloat = 3
+    }
     
     /// Joints
     private struct WeldJoint {
@@ -256,8 +270,8 @@ class JointsScene: SKScene {
         guard let view = self.view else { return }
         removeContent()
         createWalls(view: view)
-        //createWeldJoints(view: view)
-        createChainJoints(view: view)
+        //createWeldJoints()
+        createRevoluteChain()
     }
     
     private func removeContent() {
@@ -309,7 +323,7 @@ class JointsScene: SKScene {
             y: points(fromMeters: position.y)
         )
         pointerNode.zRotation = CGFloat(rotation.angle)
-        pointerNode.zPosition = 1000
+        pointerNode.zPosition = ZPosition.UI
         addChild(pointerNode)
         
         /// Pointer body: kinematic target used by the motor joint
@@ -373,6 +387,7 @@ class JointsScene: SKScene {
             node.strokeColor = .black
             node.lineWidth = 2
             node.position = position
+            node.zPosition = ZPosition.background
             addChild(node)
             
             /// Box2D body
@@ -387,6 +402,7 @@ class JointsScene: SKScene {
             
             var shapeDef = b2ShapeDef.default()
             shapeDef.density = 0
+            shapeDef.filter.categoryBits = PhysicsCategory.wall
             
             /// Static container parts are simple rectangle collision shapes
             let polygon = B2Polygon.makeBox(
@@ -402,28 +418,40 @@ class JointsScene: SKScene {
     
     // MARK: Chain
     
-    private func createChainJoints(view: SKView) {
-        let blockCount = 20
+    private func createChain() {
+        
+    }
+    
+    // MARK: Revolute Chain
+    
+    private func createRevoluteChain(linksShouldCollideWithEachOther: Bool = true) {
+        let blockCount = 2000
         let cellSize: CGFloat = 44
-        let blockSize = CGSize(width: 38, height: 20)
-        let startPosition = CGPoint(x: -CGFloat(blockCount - 1) * cellSize / 2, y: 250)
+        let blockSize = CGSize(width: 20, height: 38)
+        /// Lowest block center Y, the chain grows upward
+        let startPosition = CGPoint(x: 0, y: -150)
         let colors: [SKColor] = [.systemOrange, .systemYellow, .systemTeal, .systemRed, .white, .systemGray]
         
         var chainEntities: [Entity] = []
         
         for index in 0..<blockCount {
             let position = CGPoint(
-                x: startPosition.x + CGFloat(index) * cellSize,
-                y: startPosition.y
+                x: startPosition.x,
+                y: startPosition.y + CGFloat(index) * cellSize
             )
             
             /// SpriteKit visual
-            let node = SKShapeNode(rectOf: blockSize, cornerRadius: 6)
-            node.fillColor = colors.randomElement() ?? .systemYellow
-            node.strokeColor = .black
-            node.lineWidth = 3
-            node.position = position
-            node.zPosition = 1
+            let texture = ResourceCache.texture(
+                isRectangle: true,
+                width: blockSize.width,
+                height: blockSize.height,
+                cornerRadius: 6
+            )
+            
+            let node = SKSpriteNode(texture: texture, size: blockSize)
+            node.colorBlendFactor = 1
+            node.color = colors.randomElement() ?? .systemYellow
+            node.zPosition = ZPosition.content
             addChild(node)
             
             /// Box2D body
@@ -433,8 +461,9 @@ class JointsScene: SKScene {
                 x: meters(fromPoints: position.x),
                 y: meters(fromPoints: position.y)
             )
-            bodyDef.linearDamping = 6
-            bodyDef.angularDamping = 6
+            bodyDef.linearDamping = 1
+            bodyDef.angularDamping = 1
+            bodyDef.gravityScale = 2
             
             let body = b2DWorld.createBody(bodyDef)
             
@@ -442,7 +471,9 @@ class JointsScene: SKScene {
             var shapeDef = b2ShapeDef.default()
             shapeDef.density = 1
             shapeDef.material.friction = 0.5
-            shapeDef.material.restitution = 0.05
+            shapeDef.material.restitution = 0.2
+            shapeDef.filter.categoryBits = PhysicsCategory.chain
+            shapeDef.filter.maskBits = linksShouldCollideWithEachOther ? PhysicsCategory.wall | PhysicsCategory.chain : PhysicsCategory.wall
             
             /// Rectangle collision shape
             let polygon = B2Polygon.makeBox(
@@ -464,6 +495,7 @@ class JointsScene: SKScene {
             let bodyAPosition = bodyA.getPosition()
             let bodyBPosition = bodyB.getPosition()
             
+            /// Midpoint
             let anchorPosition = B2Vec2(
                 x: (bodyAPosition.x + bodyBPosition.x) / 2,
                 y: (bodyAPosition.y + bodyBPosition.y) / 2
@@ -475,8 +507,8 @@ class JointsScene: SKScene {
             jointDef.bodyB = bodyB
             jointDef.base.collideConnected = false
             jointDef.enableLimit = true
-            jointDef.lowerAngle = -.pi / 4
-            jointDef.upperAngle = .pi / 4
+            jointDef.lowerAngle = -.pi / 2
+            jointDef.upperAngle = .pi / 2
             
             /// Box2D joint anchors are expressed in body-local coordinates
             jointDef.base.localFrameA.p = bodyA.getLocalPoint(anchorPosition)
@@ -488,7 +520,7 @@ class JointsScene: SKScene {
     
     // MARK: Weld Joints
     
-    private func createWeldJoints(view: SKView) {
+    private func createWeldJoints() {
         let columns = 6
         let rows = 6
         let cellSize: CGFloat = 82
@@ -523,7 +555,7 @@ class JointsScene: SKScene {
                 node.colorBlendFactor = 1
                 node.color = colors.randomElement() ?? .systemYellow
                 node.position = position
-                node.zPosition = 1
+                node.zPosition = ZPosition.content
                 addChild(node)
                 
                 /// Box2D body
@@ -607,7 +639,7 @@ class JointsScene: SKScene {
                     jointViz.strokeColor = .black
                     jointViz.lineWidth = 3
                     jointViz.lineCap = .round
-                    jointViz.zPosition = 0
+                    jointViz.zPosition = ZPosition.background
                     addChild(jointViz)
                     
                     weldJoints.append(WeldJoint(
@@ -647,7 +679,7 @@ class JointsScene: SKScene {
                     jointViz.strokeColor = .black
                     jointViz.lineWidth = 3
                     jointViz.lineCap = .round
-                    jointViz.zPosition = 0
+                    jointViz.zPosition = ZPosition.background
                     addChild(jointViz)
                     
                     weldJoints.append(WeldJoint(
@@ -692,20 +724,6 @@ class JointsScene: SKScene {
             
             accumulatedTime -= fixedTimestep
         }
-    }
-    
-    private func fixedUpdate(_ fixedTimestep: TimeInterval) {
-        /// Move pointer
-        for drag in activeDrags.values {
-            drag.pointerEntity.body.setTargetTransform( /// move by setting velocity, not teleport
-                B2Transform(p: drag.targetPosition, q: drag.targetRotation), /// p is position, q is rotation
-                Float(fixedTimestep),
-                true /// Wake from sleep
-            )
-        }
-        
-        /// Step Box2D with the fixed timestep
-        b2DWorld.step(Float(fixedTimestep), subSteps: 4)
     }
     
     override func didApplyConstraints() {
@@ -794,6 +812,22 @@ class JointsScene: SKScene {
         }
     }
     
+    // MARK: Fixed Update
+    
+    private func fixedUpdate(_ fixedTimestep: TimeInterval) {
+        /// Move pointer
+        for drag in activeDrags.values {
+            drag.pointerEntity.body.setTargetTransform( /// move by setting velocity, not teleport
+                B2Transform(p: drag.targetPosition, q: drag.targetRotation), /// p is position, q is rotation
+                Float(fixedTimestep),
+                true /// Wake from sleep
+            )
+        }
+        
+        /// Step Box2D with the fixed timestep
+        b2DWorld.step(Float(fixedTimestep), subSteps: 4)
+    }
+    
     // MARK: Touch Began
     
     override func touchesBegan(_ touches: Set<UITouch>, with event: UIEvent?) {
@@ -873,7 +907,7 @@ class JointsScene: SKScene {
             jointVizNode.fillColor = .black
             jointVizNode.lineWidth = 3
             jointVizNode.lineCap = .round
-            jointVizNode.zPosition = 10
+            jointVizNode.zPosition = ZPosition.viz
             addChild(jointVizNode)
             
             /// Store drag state
