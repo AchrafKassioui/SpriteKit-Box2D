@@ -1,5 +1,7 @@
 # SpriteKit Box2D
 
+<img src="SpriteKit-Box2D/Media/SpriteKit-Box2d-Drag-Mac.png" alt="SpriteKit-Box2d-Drag-Mac" style="width:100%;" />
+
 ## Overview
 
 This project explores integrating SpriteKit with Box2D version 3 for physics-based apps and simulation experiments.

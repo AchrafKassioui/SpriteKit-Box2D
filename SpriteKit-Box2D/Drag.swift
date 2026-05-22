@@ -287,7 +287,7 @@ class DragScene: SKScene {
     
     private func createWalls(view: SKView) {
         let thickness: CGFloat = 15
-        let baseWidth: CGFloat = 2000
+        let baseWidth: CGFloat = 4000
         let sideHeight: CGFloat = 20000
         
         /// Ground center Y, relative to scene origin.
@@ -360,8 +360,8 @@ class DragScene: SKScene {
         let groundTopY = -innerHeight / 2
         let gapAboveGround: CGFloat = 400
         
-        let columns = 10
-        let rows = 100
+        let columns = 50
+        let rows = 30
         let cellSize: CGFloat = 80
         let blockSize = CGSize(width: 75, height: 75)
         let cornerRadius: CGFloat = 12
@@ -373,7 +373,7 @@ class DragScene: SKScene {
                 let position = CGPoint(x: blockX, y: blockY)
                 
                 /// Pick one visual/collision shape for this block.
-                let isCircle = true
+                let isCircle = Bool.random()
                 
                 /// SpriteKit node
                 let texture = ResourceCache.texture(

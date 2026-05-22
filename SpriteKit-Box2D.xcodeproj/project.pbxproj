@@ -7,11 +7,13 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		DE0FB5002FC096A2008D6DFE /* README.md in Resources */ = {isa = PBXBuildFile; fileRef = DE0FB4FF2FC096A2008D6DFE /* README.md */; };
 		DEFE8FCA2FBCD3440018DF82 /* SwiftBox2D in Frameworks */ = {isa = PBXBuildFile; productRef = DEFE8FC92FBCD3440018DF82 /* SwiftBox2D */; };
 		DEFE8FCC2FBCD3440018DF82 /* box2d in Frameworks */ = {isa = PBXBuildFile; productRef = DEFE8FCB2FBCD3440018DF82 /* box2d */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
+		DE0FB4FF2FC096A2008D6DFE /* README.md */ = {isa = PBXFileReference; lastKnownFileType = net.daringfireball.markdown; path = README.md; sourceTree = "<group>"; };
 		DEFE8FB62FBCD1C30018DF82 /* SpriteKit-Box2D.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = "SpriteKit-Box2D.app"; sourceTree = BUILT_PRODUCTS_DIR; };
 /* End PBXFileReference section */
 
@@ -54,6 +56,7 @@
 			children = (
 				DEFE8FB82FBCD1C30018DF82 /* SpriteKit-Box2D */,
 				DEFE8FB72FBCD1C30018DF82 /* Products */,
+				DE0FB4FF2FC096A2008D6DFE /* README.md */,
 			);
 			sourceTree = "<group>";
 		};
@@ -134,6 +137,7 @@
 			isa = PBXResourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				DE0FB5002FC096A2008D6DFE /* README.md in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
