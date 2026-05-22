@@ -117,6 +117,7 @@ class DragScene: SKScene {
     private let physicsSpeed: CGFloat = 1
     private var accumulatedTime: TimeInterval = 0
     private var lastUpdateTime: TimeInterval?
+    private var deltaTime: TimeInterval = 0
     
     /// Box2D
     private static let pointsPerMeter: CGFloat = 150 /// Same scale as SpriteKit, where 150 points = 1 meter
@@ -359,7 +360,7 @@ class DragScene: SKScene {
         let groundTopY = -innerHeight / 2
         let gapAboveGround: CGFloat = 400
         
-        let columns = 6
+        let columns = 10
         let rows = 100
         let cellSize: CGFloat = 80
         let blockSize = CGSize(width: 75, height: 75)
@@ -394,17 +395,16 @@ class DragScene: SKScene {
                     x: meters(fromPoints: position.x),
                     y: meters(fromPoints: position.y)
                 )
-                bodyDef.linearDamping = 0
-                bodyDef.angularDamping = 0
-                bodyDef.enableSleep = false
+//                bodyDef.linearDamping = 0
+//                bodyDef.angularDamping = 0
                 
                 let body = b2DWorld.createBody(bodyDef)
                 
                 /// Box2D material
                 var shapeDef = b2ShapeDef.default()
                 shapeDef.density = 2
-                shapeDef.material.friction = 0
-                shapeDef.material.restitution = 1
+                shapeDef.material.friction = 0.5
+                shapeDef.material.restitution = 0.2
                 
                 if isCircle {
                     /// Circle collision shape
@@ -412,21 +412,13 @@ class DragScene: SKScene {
                         center: B2Vec2(x: 0, y: 0),
                         radius: meters(fromPoints: blockSize.width / 2)
                     )
-                    
                     body.createShape(circle, shapeDef: shapeDef)
                 } else {
                     let clampedCornerRadius = min(cornerRadius, blockSize.width / 2, blockSize.height / 2)
                     let roundedRadius = meters(fromPoints: clampedCornerRadius)
                     
-                    let innerHalfWidth = max(
-                        0.001,
-                        meters(fromPoints: blockSize.width / 2 - clampedCornerRadius)
-                    )
-                    
-                    let innerHalfHeight = max(
-                        0.001,
-                        meters(fromPoints: blockSize.height / 2 - clampedCornerRadius)
-                    )
+                    let innerHalfWidth = max(0.001, meters(fromPoints: blockSize.width / 2 - clampedCornerRadius))
+                    let innerHalfHeight = max(0.001, meters(fromPoints: blockSize.height / 2 - clampedCornerRadius))
                     
                     /// Rounded rectangle collision shape
                     let polygon = b2MakeRoundedBox(
@@ -434,7 +426,6 @@ class DragScene: SKScene {
                         innerHalfHeight,
                         roundedRadius
                     )
-                    
                     body.createShape(polygon, shapeDef: shapeDef)
                 }
                 
@@ -452,12 +443,19 @@ class DragScene: SKScene {
             return
         }
         
-        let deltaTime = currentTime - lastUpdateTime
+        deltaTime = currentTime - lastUpdateTime
         self.lastUpdateTime = currentTime
         
         /// Run systems that update once per rendered frame
-        update(deltaTime: deltaTime)
-        
+        navCamera.lock = !activeDrags.isEmpty
+        navCamera.update()
+    }
+    
+    override func didEvaluateActions() {
+        navCamera.didEvaluateActions()
+    }
+    
+    override func didSimulatePhysics() {
         ///  Convert current time into fixed time step
         accumulatedTime += deltaTime * physicsSpeed
         
@@ -469,11 +467,7 @@ class DragScene: SKScene {
         }
     }
     
-    override func didEvaluateActions() {
-        navCamera.didEvaluateActions()
-    }
-    
-    override func didSimulatePhysics() {
+    private func fixedUpdate(deltaTime: TimeInterval) {
         /// Move pointer
         for drag in activeDrags.values {
             drag.pointerEntity.body.setTargetTransform( /// move by setting velocity, not teleport
@@ -485,7 +479,13 @@ class DragScene: SKScene {
         
         /// Simulate
         b2DWorld.step(1.0 / 60.0, subSteps: 4)
+    }
+    
+    override func didApplyConstraints() {
         
+    }
+    
+    override func didFinishUpdate() {
         /// Retrieve simulation results
         for entity in entities {
             guard let node = entity.node else { continue }
@@ -543,17 +543,6 @@ class DragScene: SKScene {
         } else {
             debugRenderer.clear()
         }
-    }
-    
-    private func update(deltaTime: TimeInterval) {
-        navCamera.lock = !activeDrags.isEmpty
-        navCamera.update()
-    }
-    
-    // MARK: Fixed Update
-    
-    private func fixedUpdate(deltaTime: TimeInterval) {
-        
     }
     
     // MARK: Touch Began
