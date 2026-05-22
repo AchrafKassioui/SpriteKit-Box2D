@@ -17,12 +17,6 @@ This project explores integrating SpriteKit with Box2D version 3 for physics-bas
 - [Stack with High Restitution](https://www.achrafkassioui.com/images/SpriteKit%20-%20Box2D%20v3%20-%20High%20Restitution.mov) (83MB)
 - [Box2D Explode Effect](https://www.achrafkassioui.com/images/SpriteKit%20-%20Box2D%20v3%20-%20Explode.mov) (113MB)
 
-## Requirements
-
-- Xcode
-- macOS
-- iOS / Mac Catalyst target support
-
 ## Dependencies
 
 The project uses Luiz Fernando's Box2D v3 Swift wrapper, [SwiftBox2D](https://github.com/LuizZak/SwiftBox2D). If Xcode does not fetch it automatically, try File -> Packages -> Resolve Package Versions.

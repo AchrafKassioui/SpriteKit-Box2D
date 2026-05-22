@@ -367,7 +367,7 @@ class JointsScene: SKScene {
             let size = sizes[index]
             let position = positions[index]
             
-            /// Visual node
+            /// Rendering
             let node = SKShapeNode(rectOf: size)
             node.fillColor = .gray
             node.strokeColor = .black
@@ -388,7 +388,7 @@ class JointsScene: SKScene {
             var shapeDef = b2ShapeDef.default()
             shapeDef.density = 0
             
-            /// Static container parts are simple rectangle collision shapes.
+            /// Static container parts are simple rectangle collision shapes
             let polygon = B2Polygon.makeBox(
                 halfWidth: meters(fromPoints: size.width / 2),
                 halfHeight: meters(fromPoints: size.height / 2)
@@ -417,7 +417,7 @@ class JointsScene: SKScene {
                 y: startPosition.y
             )
             
-            /// SpriteKit visual.
+            /// SpriteKit visual
             let node = SKShapeNode(rectOf: blockSize, cornerRadius: 6)
             node.fillColor = colors.randomElement() ?? .systemYellow
             node.strokeColor = .black
@@ -426,7 +426,7 @@ class JointsScene: SKScene {
             node.zPosition = 1
             addChild(node)
             
-            /// Box2D body.
+            /// Box2D body
             var bodyDef = b2BodyDef.default()
             bodyDef.type = .b2DynamicBody
             bodyDef.position = B2Vec2(
@@ -438,13 +438,13 @@ class JointsScene: SKScene {
             
             let body = b2DWorld.createBody(bodyDef)
             
-            /// Box2D material.
+            /// Box2D material
             var shapeDef = b2ShapeDef.default()
             shapeDef.density = 1
             shapeDef.material.friction = 0.5
             shapeDef.material.restitution = 0.05
             
-            /// Rectangle collision shape.
+            /// Rectangle collision shape
             let polygon = B2Polygon.makeBox(
                 halfWidth: meters(fromPoints: blockSize.width / 2),
                 halfHeight: meters(fromPoints: blockSize.height / 2)
@@ -469,7 +469,7 @@ class JointsScene: SKScene {
                 y: (bodyAPosition.y + bodyBPosition.y) / 2
             )
             
-            /// Revolute joint connects two blocks at a pivot while allowing rotation.
+            /// Revolute joint connects two blocks at a pivot while allowing rotation
             var jointDef = b2RevoluteJointDef.default()
             jointDef.bodyA = bodyA
             jointDef.bodyB = bodyB
@@ -478,7 +478,7 @@ class JointsScene: SKScene {
             jointDef.lowerAngle = -.pi / 4
             jointDef.upperAngle = .pi / 4
             
-            /// Box2D joint anchors are expressed in body-local coordinates.
+            /// Box2D joint anchors are expressed in body-local coordinates
             jointDef.base.localFrameA.p = bodyA.getLocalPoint(anchorPosition)
             jointDef.base.localFrameB.p = bodyB.getLocalPoint(anchorPosition)
             
@@ -497,7 +497,7 @@ class JointsScene: SKScene {
         let colors: [SKColor] = [.systemOrange, .systemYellow, .systemTeal, .systemRed, .white, .systemGray]
         let startY: CGFloat = -150
         
-        /// Start at the bottom-left of the grid, then grow right and up.
+        /// Start at the bottom-left of the grid, then grow right and up
         let startX = -CGFloat(columns - 1) * cellSize / 2
         
         var gridEntities: [[Entity]] = []
@@ -552,7 +552,7 @@ class JointsScene: SKScene {
                     blockSize.height / 2
                 )
                 
-                /// Box2D rounded boxes are a core box inflated by radius, so subtract the radius to keep the total size true to the texture.
+                /// Box2D rounded boxes are a core box inflated by radius, so subtract the radius to keep the total size true to the texture
                 let roundedRadius = meters(fromPoints: clampedCornerRadius)
                 let innerHalfWidth = max(0.001, meters(fromPoints: blockSize.width / 2 - clampedCornerRadius))
                 let innerHalfHeight = max(0.001, meters(fromPoints: blockSize.height / 2 - clampedCornerRadius))
@@ -581,7 +581,7 @@ class JointsScene: SKScene {
                 if column + 1 < columns {
                     let rightEntity = gridEntities[row][column + 1]
                     
-                    /// Connect this block to the block on its right.
+                    /// Connect this block to the block on its right
                     var jointDef = b2WeldJointDef.default()
                     jointDef.bodyA = currentEntity.body
                     jointDef.bodyB = rightEntity.body
@@ -596,13 +596,13 @@ class JointsScene: SKScene {
                         y: (currentPosition.y + rightPosition.y) / 2
                     )
                     
-                    /// Box2D joint anchors are expressed in body-local coordinates.
+                    /// Box2D joint anchors are expressed in body-local coordinates
                     jointDef.base.localFrameA.p = currentEntity.body.getLocalPoint(anchorPosition)
                     jointDef.base.localFrameB.p = rightEntity.body.getLocalPoint(anchorPosition)
                     
                     let joint = b2DWorld.createJoint(jointDef)
                     
-                    /// SpriteKit line used to visualize this weld joint.
+                    /// Joint visualization
                     let jointViz = SKShapeNode()
                     jointViz.strokeColor = .black
                     jointViz.lineWidth = 3
@@ -621,7 +621,7 @@ class JointsScene: SKScene {
                 if row + 1 < rows {
                     let topEntity = gridEntities[row + 1][column]
                     
-                    /// Connect this block to the block above it.
+                    /// Connect this block to the block above it
                     var jointDef = b2WeldJointDef.default()
                     jointDef.bodyA = currentEntity.body
                     jointDef.bodyB = topEntity.body
@@ -636,13 +636,13 @@ class JointsScene: SKScene {
                         y: (currentPosition.y + topPosition.y) / 2
                     )
                     
-                    /// Box2D joint anchors are expressed in body-local coordinates.
+                    /// Box2D joint anchors are expressed in body-local coordinates
                     jointDef.base.localFrameA.p = currentEntity.body.getLocalPoint(anchorPosition)
                     jointDef.base.localFrameB.p = topEntity.body.getLocalPoint(anchorPosition)
                     
                     let joint = b2DWorld.createJoint(jointDef)
                     
-                    /// SpriteKit line used to visualize this weld joint.
+                    /// Joint visualization
                     let jointViz = SKShapeNode()
                     jointViz.strokeColor = .black
                     jointViz.lineWidth = 3
@@ -704,7 +704,7 @@ class JointsScene: SKScene {
             )
         }
         
-        /// Step Box2D with the fixed timestep.
+        /// Step Box2D with the fixed timestep
         b2DWorld.step(Float(fixedTimestep), subSteps: 4)
     }
     
@@ -764,7 +764,7 @@ class JointsScene: SKScene {
             drag.jointViz.path = path
         }
         
-        /// Draw weld joint lines between connected body centers.
+        /// Draw weld joint lines between connected body centers
         for weldJoint in weldJoints {
             let bodyAPosition = weldJoint.bodyA.getPosition()
             let bodyBPosition = weldJoint.bodyB.getPosition()
@@ -840,7 +840,7 @@ class JointsScene: SKScene {
             jointDef.base.localFrameA.p = pointerAnchor
             jointDef.base.localFrameB.p = draggedAnchor
             
-            /// Spring tuning: lower hertz/force feels softer, higher feels more direct.
+            /// Spring tuning: lower hertz/force is softer, higher is more direct
             jointDef.linearHertz = 7.5
             jointDef.linearDampingRatio = 1
             
@@ -854,12 +854,12 @@ class JointsScene: SKScene {
                 let lever = sqrt(massData.rotationalInertia / massData.mass)
                 
                 if shouldMaintainAngle {
-                    /// Angular spring keeps the dragged body close to its starting rotation.
+                    /// Angular spring keeps the dragged body close to its starting rotation
                     jointDef.angularHertz = 10
                     jointDef.angularDampingRatio = 1.0
                     jointDef.maxSpringTorque = 500.0 * lever * bodyWeight
                 } else {
-                    /// Angular velocity torque acts like mild spin friction while allowing rotation.
+                    /// Angular velocity torque = spin friction
                     jointDef.maxVelocityTorque = 0.25 * lever * bodyWeight
                     jointDef.maxSpringTorque = 0
                 }
@@ -941,7 +941,7 @@ class JointsScene: SKScene {
         
         var probeCenter = B2Vec2(x: 0, y: 0)
         
-        /// The touch probe is a small circle placed at the touch position.
+        /// The touch probe is a small circle placed at the touch position
         let probe = withUnsafePointer(to: &probeCenter) { probeCenterPointer in
             b2MakeOffsetProxy(
                 probeCenterPointer,
@@ -954,7 +954,7 @@ class JointsScene: SKScene {
         
         var hitEntities: [Entity] = []
         
-        /// Ask Box2D which collision shapes overlap the touch footprint.
+        /// Ask Box2D which collision shapes overlap the touch footprint
         b2DWorld.overlapShape(probe, filter: .default()) { shape in
             let bodyId = shape.getBody()
             
@@ -970,7 +970,7 @@ class JointsScene: SKScene {
             return true
         }
         
-        /// Pick the visible node with the highest SpriteKit z position.
+        /// Pick the visible node with the highest z position
         return hitEntities.max { firstEntity, secondEntity in
             let firstZPosition = firstEntity.node?.zPosition ?? 0
             let secondZPosition = secondEntity.node?.zPosition ?? 0
@@ -989,4 +989,3 @@ class JointsScene: SKScene {
     }
     
 }
-
