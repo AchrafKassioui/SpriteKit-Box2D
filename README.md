@@ -1,6 +1,8 @@
 # SpriteKit Box2D
 
-<img src="SpriteKit-Box2D/Media/SpriteKit-Box2d-Drag-Mac.png" alt="SpriteKit-Box2d-Drag-Mac" style="width:100%;" />
+<img src="SpriteKit-Box2D/Media/Drag-Mac-1.png" alt="Drag-Mac-1" style="width:100%;" />
+
+<img src="SpriteKit-Box2D/Media/Drag-Mac-2.png" alt="Drag-Mac-2" style="width:100%;" />
 
 ## Overview
 
