@@ -406,7 +406,6 @@ class DragScene: SKScene {
                 let blockY = groundTopY + gapAboveGround + (CGFloat(row) + 0.5) * cellSize
                 let position = CGPoint(x: blockX, y: blockY)
                 
-                /// Pick one visual/collision shape for this block.
                 let isCircle = Bool.random()
                 
                 /// SpriteKit node
