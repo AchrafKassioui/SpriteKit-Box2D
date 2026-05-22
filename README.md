@@ -4,18 +4,17 @@ This project explores integrating SpriteKit with Box2D version 3 for physics-bas
 
 ## Screenshots
 
+A chain of 2000 colliding bodies linked with revolute joints:
 <img src="SpriteKit-Box2D/Media/Joints-Mac-2.png" alt="Joints-Mac-2" style="width:100%;" />
-A chain of 2000 colliding bodies linked with revolute joints.
 
+A short chain of colliding bodies linked with revolute joints:
 <img src="SpriteKit-Box2D/Media/Joints-Mac-1.png" alt="Joints-Mac-1" style="width:100%;" />
-A short chain of colliding bodies linked with revolute joints.
 
+5000 colliding bodies falling under gravity:
 <img src="SpriteKit-Box2D/Media/Drag-Mac-2.png" alt="Drag-Mac-2" style="width:100%;" />
-5000 colliding bodies falling under gravity.
 
+1500 stacked bodies, one body dragged with a motor joint:
 <img src="SpriteKit-Box2D/Media/Drag-Mac-1.png" alt="Drag-Mac-1" style="width:100%;" />
-1500 stacked bodies, one body dragged with a motor joint.
-
 
 ## Videos
 
