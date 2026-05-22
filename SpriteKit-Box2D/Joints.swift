@@ -1,18 +1,16 @@
 /**
  
- # Drag
+ # Joints
  
-A node manipulation test scene wtih SpriteKit and Box2D v3:
- - Drag nodes with physics.
- - Supports multi-touch and mouse.
+ Physics joints test scene wtih SpriteKit and Box2D v3
  
-## Notes
+ ## Notes
  
  Run in release mode, not in debug mode.
  Box2D is slow in debug mode, and fast in release mode.
  
  Achraf Kassioui
- Created 20 May 2026
+ Created 22 May 2026
  Updated 22 May 2026
  
  */
@@ -23,8 +21,8 @@ import Observation
 
 // MARK: View
 
-struct DragView: View {
-    @State var scene = DragScene()
+struct JointsView: View {
+    @State var scene = JointsScene()
     
     var body: some View {
         ZStack {
@@ -88,7 +86,7 @@ struct DragView: View {
                     )
                     
                     Spacer()
-
+                    
                     /// Content
                     ToggleButton(
                         isOn: false,
@@ -128,13 +126,13 @@ struct DragView: View {
 }
 
 #Preview {
-    DragView()
+    JointsView()
 }
 
 // MARK: Scene
 
 @Observable
-class DragScene: SKScene {
+class JointsScene: SKScene {
     
     // MARK: Properties
     
@@ -163,6 +161,15 @@ class DragScene: SKScene {
     
     private var entities: [Entity] = []
     
+    /// Joints
+    private struct WeldJoint {
+        let joint: B2WeldJoint
+        let bodyA: B2Body
+        let bodyB: B2Body
+        let jointViz: SKShapeNode
+    }
+    private var weldJoints: [WeldJoint] = []
+    
     /// Dragging
     private struct DragState {
         let pointerEntity: Entity
@@ -172,7 +179,7 @@ class DragScene: SKScene {
         let targetRotation: B2Rot
     }
     private var activeDrags: [UITouch: DragState] = [:]
-    private let shouldMaintainAngle = true
+    private let shouldMaintainAngle = false
     
     // MARK: Lifecycle
     
@@ -249,12 +256,21 @@ class DragScene: SKScene {
         guard let view = self.view else { return }
         removeContent()
         createWalls(view: view)
-        createBlocks(view: view)
+        //createWeldJoints(view: view)
+        createChainJoints(view: view)
     }
     
     private func removeContent() {
         /// Destroy drag joints first because they reference bodies.
         endDrags(wakeAttached: false)
+        
+        /// Destroy weld joints before destroying their connected bodies.
+        for weldJoint in weldJoints {
+            weldJoint.joint.destroy(wakeAttached: false)
+            weldJoint.jointViz.removeFromParent()
+        }
+        
+        weldJoints.removeAll()
         
         /// Remove all SpriteKit nodes and Box2D bodies owned by the scene content.
         for entity in entities {
@@ -320,7 +336,7 @@ class DragScene: SKScene {
     
     private func createWalls(view: SKView) {
         let thickness: CGFloat = 15
-        let baseWidth: CGFloat = 4000
+        let baseWidth: CGFloat = 2000
         let sideHeight: CGFloat = 20000
         
         /// Ground center Y, relative to scene origin.
@@ -384,43 +400,130 @@ class DragScene: SKScene {
         }
     }
     
-    // MARK: Blocks
+    // MARK: Chain
     
-    private func createBlocks(view: SKView, useCircles: Bool = false) {
-        let safe = view.bounds.inset(by: view.safeAreaInsets)
-        let padding: CGFloat = 15
-        let innerHeight = safe.height - padding * 2
-        let groundTopY = -innerHeight / 2
-        let gapAboveGround: CGFloat = 400
-        
-        let columns = 5
-        let rows = 1000
-        let cellSize: CGFloat = 80
-        let blockSize = CGSize(width: 75, height: 75)
-        let cornerRadius: CGFloat = 12
+    private func createChainJoints(view: SKView) {
+        let blockCount = 20
+        let cellSize: CGFloat = 44
+        let blockSize = CGSize(width: 38, height: 20)
+        let startPosition = CGPoint(x: -CGFloat(blockCount - 1) * cellSize / 2, y: 250)
         let colors: [SKColor] = [.systemOrange, .systemYellow, .systemTeal, .systemRed, .white, .systemGray]
         
+        var chainEntities: [Entity] = []
+        
+        for index in 0..<blockCount {
+            let position = CGPoint(
+                x: startPosition.x + CGFloat(index) * cellSize,
+                y: startPosition.y
+            )
+            
+            /// SpriteKit visual.
+            let node = SKShapeNode(rectOf: blockSize, cornerRadius: 6)
+            node.fillColor = colors.randomElement() ?? .systemYellow
+            node.strokeColor = .black
+            node.lineWidth = 3
+            node.position = position
+            node.zPosition = 1
+            addChild(node)
+            
+            /// Box2D body.
+            var bodyDef = b2BodyDef.default()
+            bodyDef.type = .b2DynamicBody
+            bodyDef.position = B2Vec2(
+                x: meters(fromPoints: position.x),
+                y: meters(fromPoints: position.y)
+            )
+            bodyDef.linearDamping = 6
+            bodyDef.angularDamping = 6
+            
+            let body = b2DWorld.createBody(bodyDef)
+            
+            /// Box2D material.
+            var shapeDef = b2ShapeDef.default()
+            shapeDef.density = 1
+            shapeDef.material.friction = 0.5
+            shapeDef.material.restitution = 0.05
+            
+            /// Rectangle collision shape.
+            let polygon = B2Polygon.makeBox(
+                halfWidth: meters(fromPoints: blockSize.width / 2),
+                halfHeight: meters(fromPoints: blockSize.height / 2)
+            )
+            
+            body.createShape(polygon, shapeDef: shapeDef)
+            
+            let entity = Entity(node: node, body: body)
+            entities.append(entity)
+            chainEntities.append(entity)
+        }
+        
+        for index in 0..<(chainEntities.count - 1) {
+            let bodyA = chainEntities[index].body
+            let bodyB = chainEntities[index + 1].body
+            
+            let bodyAPosition = bodyA.getPosition()
+            let bodyBPosition = bodyB.getPosition()
+            
+            let anchorPosition = B2Vec2(
+                x: (bodyAPosition.x + bodyBPosition.x) / 2,
+                y: (bodyAPosition.y + bodyBPosition.y) / 2
+            )
+            
+            /// Revolute joint connects two blocks at a pivot while allowing rotation.
+            var jointDef = b2RevoluteJointDef.default()
+            jointDef.bodyA = bodyA
+            jointDef.bodyB = bodyB
+            jointDef.base.collideConnected = false
+            jointDef.enableLimit = true
+            jointDef.lowerAngle = -.pi / 4
+            jointDef.upperAngle = .pi / 4
+            
+            /// Box2D joint anchors are expressed in body-local coordinates.
+            jointDef.base.localFrameA.p = bodyA.getLocalPoint(anchorPosition)
+            jointDef.base.localFrameB.p = bodyB.getLocalPoint(anchorPosition)
+            
+            _ = b2DWorld.createJoint(jointDef)
+        }
+    }
+    
+    // MARK: Weld Joints
+    
+    private func createWeldJoints(view: SKView) {
+        let columns = 6
+        let rows = 6
+        let cellSize: CGFloat = 82
+        let blockSize = CGSize(width: 75, height: 75)
+        let cornerRadius: CGFloat = 9
+        let colors: [SKColor] = [.systemOrange, .systemYellow, .systemTeal, .systemRed, .white, .systemGray]
+        let startY: CGFloat = -150
+        
+        /// Start at the bottom-left of the grid, then grow right and up.
+        let startX = -CGFloat(columns - 1) * cellSize / 2
+        
+        var gridEntities: [[Entity]] = []
+        
         for row in 0..<rows {
+            var rowEntities: [Entity] = []
+            
             for column in 0..<columns {
-                let blockX = (CGFloat(column) - CGFloat(columns - 1) / 2) * cellSize
-                let blockY = groundTopY + gapAboveGround + (CGFloat(row) + 0.5) * cellSize
-                let position = CGPoint(x: blockX, y: blockY)
+                let position = CGPoint(
+                    x: startX + CGFloat(column) * cellSize,
+                    y: startY + CGFloat(row) * cellSize
+                )
                 
-                /// Pick one visual/collision shape for this block.
-                let isCircle = Bool.random()
-                
-                /// SpriteKit node
+                /// SpriteKit visual
                 let texture = ResourceCache.texture(
-                    isRectangle: !isCircle,
+                    isRectangle: true,
                     width: blockSize.width,
                     height: blockSize.height,
-                    cornerRadius: 9,
+                    cornerRadius: cornerRadius
                 )
                 
                 let node = SKSpriteNode(texture: texture, size: blockSize)
                 node.colorBlendFactor = 1
                 node.color = colors.randomElement() ?? .systemYellow
                 node.position = position
+                node.zPosition = 1
                 addChild(node)
                 
                 /// Box2D body
@@ -430,8 +533,9 @@ class DragScene: SKScene {
                     x: meters(fromPoints: position.x),
                     y: meters(fromPoints: position.y)
                 )
-//                bodyDef.linearDamping = 0
-//                bodyDef.angularDamping = 0
+                bodyDef.linearDamping = 4
+                bodyDef.angularDamping = 4
+                bodyDef.gravityScale = 4
                 
                 let body = b2DWorld.createBody(bodyDef)
                 
@@ -441,31 +545,118 @@ class DragScene: SKScene {
                 shapeDef.material.friction = 0.5
                 shapeDef.material.restitution = 0.2
                 
-                if isCircle {
-                    /// Circle collision shape
-                    let circle = B2Circle(
-                        center: B2Vec2(x: 0, y: 0),
-                        radius: meters(fromPoints: blockSize.width / 2)
+                /// Collision shape
+                let clampedCornerRadius = min(
+                    cornerRadius,
+                    blockSize.width / 2,
+                    blockSize.height / 2
+                )
+                
+                /// Box2D rounded boxes are a core box inflated by radius, so subtract the radius to keep the total size true to the texture.
+                let roundedRadius = meters(fromPoints: clampedCornerRadius)
+                let innerHalfWidth = max(0.001, meters(fromPoints: blockSize.width / 2 - clampedCornerRadius))
+                let innerHalfHeight = max(0.001, meters(fromPoints: blockSize.height / 2 - clampedCornerRadius))
+                
+                /// Rounded polygon shape
+                let roundedPolygon = b2MakeRoundedBox(
+                    innerHalfWidth,
+                    innerHalfHeight,
+                    roundedRadius
+                )
+                
+                body.createShape(roundedPolygon, shapeDef: shapeDef)
+                
+                let entity = Entity(node: node, body: body)
+                entities.append(entity)
+                rowEntities.append(entity)
+            }
+            
+            gridEntities.append(rowEntities)
+        }
+        
+        for row in 0..<rows {
+            for column in 0..<columns {
+                let currentEntity = gridEntities[row][column]
+                
+                if column + 1 < columns {
+                    let rightEntity = gridEntities[row][column + 1]
+                    
+                    /// Connect this block to the block on its right.
+                    var jointDef = b2WeldJointDef.default()
+                    jointDef.bodyA = currentEntity.body
+                    jointDef.bodyB = rightEntity.body
+                    jointDef.linearHertz = 0
+                    jointDef.angularHertz = 0
+                    jointDef.base.collideConnected = false
+                    
+                    let currentPosition = currentEntity.body.getPosition()
+                    let rightPosition = rightEntity.body.getPosition()
+                    let anchorPosition = B2Vec2(
+                        x: (currentPosition.x + rightPosition.x) / 2,
+                        y: (currentPosition.y + rightPosition.y) / 2
                     )
-                    body.createShape(circle, shapeDef: shapeDef)
-                } else {
-                    let clampedCornerRadius = min(cornerRadius, blockSize.width / 2, blockSize.height / 2)
-                    let roundedRadius = meters(fromPoints: clampedCornerRadius)
                     
-                    let innerHalfWidth = max(0.001, meters(fromPoints: blockSize.width / 2 - clampedCornerRadius))
-                    let innerHalfHeight = max(0.001, meters(fromPoints: blockSize.height / 2 - clampedCornerRadius))
+                    /// Box2D joint anchors are expressed in body-local coordinates.
+                    jointDef.base.localFrameA.p = currentEntity.body.getLocalPoint(anchorPosition)
+                    jointDef.base.localFrameB.p = rightEntity.body.getLocalPoint(anchorPosition)
                     
-                    /// Rounded rectangle collision shape
-                    let roundedPolygon = b2MakeRoundedBox(
-                        innerHalfWidth,
-                        innerHalfHeight,
-                        roundedRadius
-                    )
+                    let joint = b2DWorld.createJoint(jointDef)
                     
-                    body.createShape(roundedPolygon, shapeDef: shapeDef)
+                    /// SpriteKit line used to visualize this weld joint.
+                    let jointViz = SKShapeNode()
+                    jointViz.strokeColor = .black
+                    jointViz.lineWidth = 3
+                    jointViz.lineCap = .round
+                    jointViz.zPosition = 0
+                    addChild(jointViz)
+                    
+                    weldJoints.append(WeldJoint(
+                        joint: joint,
+                        bodyA: currentEntity.body,
+                        bodyB: rightEntity.body,
+                        jointViz: jointViz
+                    ))
                 }
                 
-                entities.append(Entity(node: node, body: body))
+                if row + 1 < rows {
+                    let topEntity = gridEntities[row + 1][column]
+                    
+                    /// Connect this block to the block above it.
+                    var jointDef = b2WeldJointDef.default()
+                    jointDef.bodyA = currentEntity.body
+                    jointDef.bodyB = topEntity.body
+                    jointDef.linearHertz = 0
+                    jointDef.angularHertz = 0
+                    jointDef.base.collideConnected = false
+                    
+                    let currentPosition = currentEntity.body.getPosition()
+                    let topPosition = topEntity.body.getPosition()
+                    let anchorPosition = B2Vec2(
+                        x: (currentPosition.x + topPosition.x) / 2,
+                        y: (currentPosition.y + topPosition.y) / 2
+                    )
+                    
+                    /// Box2D joint anchors are expressed in body-local coordinates.
+                    jointDef.base.localFrameA.p = currentEntity.body.getLocalPoint(anchorPosition)
+                    jointDef.base.localFrameB.p = topEntity.body.getLocalPoint(anchorPosition)
+                    
+                    let joint = b2DWorld.createJoint(jointDef)
+                    
+                    /// SpriteKit line used to visualize this weld joint.
+                    let jointViz = SKShapeNode()
+                    jointViz.strokeColor = .black
+                    jointViz.lineWidth = 3
+                    jointViz.lineCap = .round
+                    jointViz.zPosition = 0
+                    addChild(jointViz)
+                    
+                    weldJoints.append(WeldJoint(
+                        joint: joint,
+                        bodyA: currentEntity.body,
+                        bodyB: topEntity.body,
+                        jointViz: jointViz
+                    ))
+                }
             }
         }
     }
@@ -571,6 +762,28 @@ class DragScene: SKScene {
             ))
             
             drag.jointViz.path = path
+        }
+        
+        /// Draw weld joint lines between connected body centers.
+        for weldJoint in weldJoints {
+            let bodyAPosition = weldJoint.bodyA.getPosition()
+            let bodyBPosition = weldJoint.bodyB.getPosition()
+            
+            let pointA = CGPoint(
+                x: points(fromMeters: bodyAPosition.x),
+                y: points(fromMeters: bodyAPosition.y)
+            )
+            
+            let pointB = CGPoint(
+                x: points(fromMeters: bodyBPosition.x),
+                y: points(fromMeters: bodyBPosition.y)
+            )
+            
+            let path = CGMutablePath()
+            path.move(to: pointA)
+            path.addLine(to: pointB)
+            
+            weldJoint.jointViz.path = path
         }
         
         /// Box2D debug draw
@@ -776,3 +989,4 @@ class DragScene: SKScene {
     }
     
 }
+

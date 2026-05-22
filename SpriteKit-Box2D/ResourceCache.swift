@@ -1,12 +1,15 @@
-//
-//  Textures.swift
-//  SpriteKit-Box2D
-//
-//  Created by Achraf Kassioui on 19/5/2026.
-//
+/**
+ 
+ # Resource Cache
+ 
+ Achraf Kassioui
+ Created 19 May 2026
+ Updated 22 May 2026
+ 
+ */
 import SpriteKit
 
-// MARK: Cache
+// MARK: Texture Cache
 
 enum ResourceCache {
     
@@ -14,6 +17,7 @@ enum ResourceCache {
         let isRectangle: Bool
         let width: CGFloat
         let height: CGFloat
+        let cornerRadius: CGFloat
         let strokeThickness: CGFloat
         let strokeColor: UIColor
     }
@@ -25,16 +29,21 @@ enum ResourceCache {
     
     // MARK: SKTexture
     
-    static func texture(isRectangle: Bool, width: CGFloat, height: CGFloat) -> SKTexture {
+    static func texture(isRectangle: Bool, width: CGFloat, height: CGFloat, cornerRadius: CGFloat) -> SKTexture {
+        /// Rectangles use corner radius. Circles ignore it so circle cache keys stay stable.
+        let cachedCornerRadius = isRectangle ? cornerRadius : 0
+        
         let key = TextureKey(
             isRectangle: isRectangle,
             width: width,
             height: height,
+            cornerRadius: cachedCornerRadius,
             strokeThickness: strokeThickness,
             strokeColor: strokeColor
         )
         if let cached = textures[key] { return cached }
         
+        /// Generate texture with Core Graphics
         let size = CGSize(width: width, height: height)
         let renderer = UIGraphicsImageRenderer(size: size)
         
@@ -45,19 +54,24 @@ enum ResourceCache {
             cg.setAllowsAntialiasing(true)
             
             let outerRect = CGRect(origin: .zero, size: size)
-            let cornerRadius = isRectangle ? min(width, height) * 0.12 : 0
             
             let outerPath: UIBezierPath
             let innerPath: UIBezierPath
             
             if isRectangle {
-                outerPath = UIBezierPath(roundedRect: outerRect, cornerRadius: cornerRadius)
+                /// Rounded rectangle path
+                outerPath = UIBezierPath(
+                    roundedRect: outerRect,
+                    cornerRadius: cachedCornerRadius
+                )
+                
                 let innerRect = outerRect.insetBy(dx: strokeThickness, dy: strokeThickness)
                 innerPath = UIBezierPath(
                     roundedRect: innerRect,
-                    cornerRadius: max(0, cornerRadius - strokeThickness)
+                    cornerRadius: max(0, cachedCornerRadius - strokeThickness)
                 )
             } else {
+                /// Circle path
                 outerPath = UIBezierPath(ovalIn: outerRect)
                 innerPath = UIBezierPath(ovalIn: outerRect.insetBy(dx: strokeThickness, dy: strokeThickness))
             }

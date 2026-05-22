@@ -209,6 +209,7 @@ class PileOfBlocksScene: SKScene {
         let rows = 50
         let cellSize: CGFloat = 100
         let blockSizes: [CGFloat] = [15, 30, 60, 75, 100]
+        let cornerRadius: CGFloat = 9
         let baseY: CGFloat = 1000 /// Y of the lowest row of blocks
         
         let gridWidth = CGFloat(columns) * cellSize
@@ -227,6 +228,7 @@ class PileOfBlocksScene: SKScene {
                     isRectangle: isRectangle,
                     width: width,
                     height: height,
+                    cornerRadius: cornerRadius,
                     color: color
                 )
                 
@@ -265,12 +267,14 @@ class PileOfBlocksScene: SKScene {
         isRectangle: Bool,
         width: CGFloat,
         height: CGFloat,
+        cornerRadius: CGFloat,
         color: SKColor
     ) -> SKSpriteNode {
         let texture = ResourceCache.texture(
             isRectangle: isRectangle,
             width: width,
-            height: height
+            height: height,
+            cornerRadius: cornerRadius
         )
         
         let block = SKSpriteNode(texture: texture, size: CGSize(width: width, height: height))
@@ -330,15 +334,16 @@ class PileOfBlocksScene: SKScene {
     
     private func createJointedBlocks(parent: SKNode) {
         let blockSize: CGFloat = 75
+        let cornerRadius: CGFloat = 9
         let positionA = CGPoint(x: -90, y: 350)
         let positionB = CGPoint(x: 90, y: 350)
         
         /// Visual blocks
-        let blockA = createNode(isRectangle: true, width: blockSize, height: blockSize, color: .systemRed)
+        let blockA = createNode(isRectangle: true, width: blockSize, height: blockSize, cornerRadius: cornerRadius, color: .systemRed)
         blockA.position = positionA
         parent.addChild(blockA)
         
-        let blockB = createNode(isRectangle: true, width: blockSize, height: blockSize, color: .systemBlue)
+        let blockB = createNode(isRectangle: true, width: blockSize, height: blockSize, cornerRadius: cornerRadius, color: .systemBlue)
         blockB.position = positionB
         parent.addChild(blockB)
         
