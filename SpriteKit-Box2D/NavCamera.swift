@@ -157,11 +157,10 @@ class NavigationCamera: SKCameraNode {
         rotation: CGFloat? = nil,
         withAnimation: Bool? = nil
     ) {
-        if position == nil && xScale == nil && yScale == nil && rotation == nil {
-            return
-        }
         /// Toggle manual transform tracking because we are going to use SKAction
         manuallyTriggerThePropertyObservers = true
+        
+        /// Stop all ongoing inertia and internal actions before starting a new camera animation.
         self.stop()
         
         /// Determine final values for animation
@@ -172,51 +171,25 @@ class NavigationCamera: SKCameraNode {
         let targetRotation = rotation ?? self.zRotation
         let animate = withAnimation ?? true
         
-        /// The minimum and maximum durations for the animation of each transform, in seconds
-        let minDuration: CGFloat = animate ? 0.2 : 0
-        let maxDuration: CGFloat = animate ? 3 : 0
-        /// The maximum points per second traveled by the camera
-        let translationSpeed: CGFloat = 10000
-        /// The maximum scale factor change per second
-        let scaleSpeed: CGFloat = 50
-        /// The maximum number of camera revolutions per second
-        let rotationSpeed: CGFloat = 4 * .pi
-        
-        /// Calculate the animation duration of the translation
-        let distance = sqrt(pow(targetPosition.x - self.position.x, 2) + pow(targetPosition.y - self.position.y, 2))
-        let translationDuration = min(maxDuration, max(minDuration, Double(distance / translationSpeed)))
-        
-        /// Calculate the animation duration of the scaling
-        let initialScale = max(self.xScale, self.yScale)
-        let finalScale = max(targetXScale, targetYScale)
-        var scaleDelta: CGFloat
-        if initialScale >= targetXScale || initialScale >= targetYScale {
-            scaleDelta = initialScale / finalScale
-        } else {
-            scaleDelta = finalScale / initialScale
-        }
-        let scaleDuration = min(maxDuration, max(minDuration, Double(scaleDelta / scaleSpeed)))
-        
-        /// Calculate the animation duration of the rotation
-        let rotationDelta = abs(targetRotation - self.zRotation)
-        let rotationDuration = min(maxDuration, max(minDuration, Double(rotationDelta / rotationSpeed)))
+        /// The animation duration, in seconds.
+        let duration: TimeInterval = animate ? 0.2 : 0
         
         /// Create and run the animation
-        let translationAction = SKAction.move(to: targetPosition, duration: translationDuration)
+        let translationAction = SKAction.move(to: targetPosition, duration: duration)
         translationAction.timingMode = .easeInEaseOut
-        let scaleAction = SKAction.scaleX(to: targetXScale, y: targetYScale, duration: scaleDuration)
+        
+        let scaleAction = SKAction.scaleX(to: targetXScale, y: targetYScale, duration: duration)
         scaleAction.timingMode = .easeInEaseOut
-        let rotateAction = SKAction.rotate(toAngle: targetRotation, duration: rotationDuration)
+        
+        let rotateAction = SKAction.rotate(toAngle: targetRotation, duration: duration)
         rotateAction.timingMode = .easeInEaseOut
         
-        var finalAnimation: SKAction
-        
-        /// The order of the animation depends on whether the camera is zooming in or out
-        if (self.xScale >= targetXScale || self.yScale >= targetYScale) {
-            finalAnimation = SKAction.sequence([translationAction, rotateAction, scaleAction])
-        } else {
-            finalAnimation = SKAction.sequence([scaleAction, rotateAction, translationAction])
-        }
+        /// Run translation, scale, and rotation at the same time.
+        let finalAnimation = SKAction.group([
+            translationAction,
+            scaleAction,
+            rotateAction
+        ])
         finalAnimation.timingMode = .easeInEaseOut
         
         /// After the action ends, stop tracking transforms manually

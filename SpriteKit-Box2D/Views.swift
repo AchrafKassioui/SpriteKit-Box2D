@@ -1,11 +1,17 @@
-//
-//  Views.swift
-//  SpriteKit-Box2D
-//
-//  Created by Achraf Kassioui on 21/5/2026.
-//
-
+/**
+ 
+ # SwiftUI View
+ 
+ Buttons and common views with the very annoying SwiftUI.
+ 
+ Achraf Kassioui
+ Created 21 May 2026
+ Updated 22 May 2026
+ 
+ */
 import SwiftUI
+
+// MARK: Button
 
 struct ToggleButton: View {
     let isOn: Bool
@@ -27,9 +33,12 @@ struct ToggleButton: View {
                     )
                 }
             }
+            .lineLimit(1)
+            .minimumScaleFactor(0.8)
             .foregroundStyle(isOn ? .white : .primary)
+            .frame(minWidth: 32, minHeight: 40)
             .padding(.horizontal, 16)
-            .padding(.vertical, 10)
+//            .padding(.vertical, 10)
             .background {
                 if isOn {
                     Capsule()

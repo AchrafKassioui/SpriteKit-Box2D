@@ -2,13 +2,18 @@
  
  # Drag
  
- A scene to test dragging physical nodes with Box2D.
- A motor joint is created between a pointer entity and the dragged entity.
- It seems the motor joint has replaced the mouse joint for the drag/manipulation scenario.
+A node manipulation test scene wtih SpriteKit and Box2D v3:
+ - Drag nodes with physics.
+ - Supports multi-touch and mouse.
+ 
+## Notes
+ 
+ Run in release mode, not in debug mode.
+ Box2D is slow in debug mode, and fast in release mode.
  
  Achraf Kassioui
  Created 20 May 2026
- Updated 21 May 2026
+ Updated 22 May 2026
  
  */
 import SpriteKit
@@ -33,18 +38,57 @@ struct DragView: View {
             
             VStack {
                 HStack {
-                    /// Camera
+                    /// Zoom out
                     ToggleButton(
                         isOn: false,
-                        onText: "Camera",
-                        offText: "Camera",
-                        onSystemImage: "viewfinder",
-                        offSystemImage: "viewfinder",
+                        onText: "",
+                        offText: "",
+                        onSystemImage: "minus",
+                        offSystemImage: "minus",
                         action: {
-                            scene.navCamera.reset()
+                            let zoomFactor: CGFloat = 1.25
+                            
+                            scene.navCamera.setTo(
+                                xScale: scene.navCamera.xScale * zoomFactor,
+                                yScale: scene.navCamera.yScale * zoomFactor
+                            )
                         }
                     )
                     
+                    /// Reset zoom to 1:1
+                    ToggleButton(
+                        isOn: false,
+                        onText: "100%",
+                        offText: "100%",
+                        onSystemImage: "",
+                        offSystemImage: "",
+                        action: {
+                            scene.navCamera.setTo(
+                                xScale: 1,
+                                yScale: 1
+                            )
+                        }
+                    )
+                    
+                    /// Zoom in
+                    ToggleButton(
+                        isOn: false,
+                        onText: "",
+                        offText: "",
+                        onSystemImage: "plus",
+                        offSystemImage: "plus",
+                        action: {
+                            let zoomFactor: CGFloat = 0.8
+                            
+                            scene.navCamera.setTo(
+                                xScale: scene.navCamera.xScale * zoomFactor,
+                                yScale: scene.navCamera.yScale * zoomFactor
+                            )
+                        }
+                    )
+                    
+                    Spacer()
+
                     /// Content
                     ToggleButton(
                         isOn: false,
@@ -56,20 +100,6 @@ struct DragView: View {
                             scene.createContent()
                         }
                     )
-                                       
-                    /// Debug
-                    ToggleButton(
-                        isOn: false,
-                        onText: "",
-                        offText: "",
-                        onSystemImage: "stethoscope",
-                        offSystemImage: "stethoscope",
-                        action: {
-                            scene.debugPhysics.toggle()
-                        }
-                    )
-                    
-                    Spacer()
                 }
                 Spacer()
                 HStack {
@@ -110,21 +140,21 @@ class DragScene: SKScene {
     
     /// Camera
     let navCamera = NavigationCamera()
-    var cameraDragOnly = false
+    var cameraDragOnly = true
     
     /// Timing
     private let fixedTimestep: TimeInterval = 1/60
-    private let physicsSpeed: CGFloat = 1
+    private var physicsSpeed: CGFloat = 1
     private var accumulatedTime: TimeInterval = 0
     private var lastUpdateTime: TimeInterval?
     private var deltaTime: TimeInterval = 0
     
     /// Box2D
-    private static let pointsPerMeter: CGFloat = 150 /// Same scale as SpriteKit, where 150 points = 1 meter
+    private static let pointsPerMeter: CGFloat = 150 /// In SpriteKit, 150 points = 1 meter
     private let gravityLength: Float = 10
     private let b2DWorld = B2World()
     private let debugRenderer = Box2DDebugRenderer(pointsPerMeter: pointsPerMeter)
-    var debugPhysics: Bool = false
+    var debugPhysics: Bool = false /// Warning, if there are too many nodes, app may crash or framerate may tank.
     
     /// Entities
     private struct Entity {
@@ -143,7 +173,7 @@ class DragScene: SKScene {
         let targetRotation: B2Rot
     }
     private var activeDrags: [UITouch: DragState] = [:]
-    private let shouldMaintainRotation = true
+    private let shouldMaintainAngle = true
     
     // MARK: Lifecycle
     
@@ -204,6 +234,10 @@ class DragScene: SKScene {
             .run { [weak self] in
                 guard let self else { return }
                 b2DWorld.gravity = B2Vec2(x: 0, y: -gravityLength)
+                
+                for entity in entities {
+                    entity.body.setAwake(true)
+                }
             }
         ])
         action.timingMode = .linear
@@ -360,11 +394,12 @@ class DragScene: SKScene {
         let groundTopY = -innerHeight / 2
         let gapAboveGround: CGFloat = 400
         
-        let columns = 50
-        let rows = 30
+        let columns = 5
+        let rows = 1000
         let cellSize: CGFloat = 80
         let blockSize = CGSize(width: 75, height: 75)
         let cornerRadius: CGFloat = 12
+        let colors: [SKColor] = [.systemOrange, .systemYellow, .systemTeal, .systemRed, .white, .systemGray]
         
         for row in 0..<rows {
             for column in 0..<columns {
@@ -384,7 +419,7 @@ class DragScene: SKScene {
                 
                 let node = SKSpriteNode(texture: texture, size: blockSize)
                 node.colorBlendFactor = 1
-                node.color = .systemYellow
+                node.color = colors.randomElement() ?? .systemYellow
                 node.position = position
                 addChild(node)
                 
@@ -421,12 +456,19 @@ class DragScene: SKScene {
                     let innerHalfHeight = max(0.001, meters(fromPoints: blockSize.height / 2 - clampedCornerRadius))
                     
                     /// Rounded rectangle collision shape
-                    let polygon = b2MakeRoundedBox(
+                    let roundedPolygon = b2MakeRoundedBox(
                         innerHalfWidth,
                         innerHalfHeight,
                         roundedRadius
                     )
-                    body.createShape(polygon, shapeDef: shapeDef)
+                    
+                    /// Plain rectangle collision shape.
+                    let rectanglePolygon = B2Polygon.makeBox(
+                        halfWidth: meters(fromPoints: blockSize.width / 2),
+                        halfHeight: meters(fromPoints: blockSize.height / 2)
+                    )
+                    
+                    body.createShape(rectanglePolygon, shapeDef: shapeDef)
                 }
                 
                 entities.append(Entity(node: node, body: body))
@@ -461,24 +503,24 @@ class DragScene: SKScene {
         
         while accumulatedTime >= fixedTimestep {
             /// Run systems on fixed time steps
-            fixedUpdate(deltaTime: fixedTimestep)
+            fixedUpdate(fixedTimestep)
             
             accumulatedTime -= fixedTimestep
         }
     }
     
-    private func fixedUpdate(deltaTime: TimeInterval) {
+    private func fixedUpdate(_ fixedTimestep: TimeInterval) {
         /// Move pointer
         for drag in activeDrags.values {
             drag.pointerEntity.body.setTargetTransform( /// move by setting velocity, not teleport
                 B2Transform(p: drag.targetPosition, q: drag.targetRotation), /// p is position, q is rotation
-                1.0 / 60.0,
+                Float(deltaTime),
                 true /// Wake from sleep
             )
         }
         
-        /// Simulate
-        b2DWorld.step(1.0 / 60.0, subSteps: 4)
+        /// Step Box2D with the fixed timestep.
+        b2DWorld.step(Float(fixedTimestep), subSteps: 4)
     }
     
     override func didApplyConstraints() {
@@ -604,7 +646,7 @@ class DragScene: SKScene {
             if massData.mass > 0.0 {
                 let lever = sqrt(massData.rotationalInertia / massData.mass)
                 
-                if shouldMaintainRotation {
+                if shouldMaintainAngle {
                     /// Angular spring keeps the dragged body close to its starting rotation.
                     jointDef.angularHertz = 10
                     jointDef.angularDampingRatio = 1.0

@@ -11,3 +11,7 @@ This project explores integrating SpriteKit with Box2D version 3 for physics-bas
 - Xcode
 - macOS
 - iOS / Mac Catalyst target support
+
+## Dependencies
+
+The project uses Luiz Fernando's Box2D v3 Swift wrapper, [SwiftBox2D](https://github.com/LuizZak/SwiftBox2D). If Xcode does not fetch it automatically, try File -> Packages -> Resolve Package Versions.
