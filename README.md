@@ -29,3 +29,8 @@ A short chain of colliding bodies linked with revolute joints:
 ## Dependencies
 
 The project uses Luiz Fernando's Box2D v3 Swift wrapper, [SwiftBox2D](https://github.com/LuizZak/SwiftBox2D). If Xcode does not fetch it automatically, try File -> Packages -> Resolve Package Versions.
+
+## References
+
+- Glenn Fiedler, [Fix Your Timestep!](https://gafferongames.com/post/fix_your_timestep/), 2004. Used to setup a fixed update in SpriteKit.
+- Erin Catto, [Determinism](https://box2d.org/posts/2024/08/determinism/). Used to setup the Determinism test scene.
