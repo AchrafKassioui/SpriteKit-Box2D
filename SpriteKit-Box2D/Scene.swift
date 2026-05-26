@@ -59,7 +59,7 @@ class Scene: SKScene, NavigationCameraDelegate, UIGestureRecognizerDelegate {
     /// Entities
     var entities: [B2BodyId: Entity] = [:]
     
-    /// Joints
+    /// Joints viz
     struct WeldJoint {
         let joint: B2WeldJoint
         let bodyA: B2Body

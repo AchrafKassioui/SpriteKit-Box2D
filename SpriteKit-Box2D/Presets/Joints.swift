@@ -13,7 +13,7 @@ extension Scene {
     
     func createVerticalChain(linkCount: Int, startY: CGFloat) {
         let cellSize: CGFloat = 44
-        let linkSize = CGSize(width: 20, height: 38)
+        let linkSize = CGSize(width: 20, height: 48)
         let startPosition = CGPoint(x: 0, y: startY)
         
         var chainEntities: [Entity] = []
