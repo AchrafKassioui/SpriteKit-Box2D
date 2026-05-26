@@ -1,19 +1,22 @@
 /**
  
- # Drag
+ # Dragging
  
-A node manipulation test scene wtih SpriteKit and Box2D v3:
- - Drag nodes with physics.
- - Supports multi-touch and mouse.
+ A test scene to implement dragging with physics in Box2D v3.
+ 
+ - On touchesBegan, a kinematic pointer is created, and a motor joint is created between the pointer and the touched block.
+ - TouchesMoved set the target position of the pointer
+ - Update sets the position of the pointer with velocity
+ - The joint does the rest.
  
 ## Notes
  
- Run in release mode, not in debug mode.
- Box2D is slow in debug mode, and fast in release mode.
+ - With Box2D version 3, it seems motor joint has replaced the mouse joint as the go-to joint for dragging with physics.
+ - Box2D's perfomance in release build are much better than in debug build.
  
  Achraf Kassioui
  Created 20 May 2026
- Updated 22 May 2026
+ Updated 24 May 2026
  
  */
 import SpriteKit
@@ -24,7 +27,7 @@ import Observation
 // MARK: View
 
 struct DragView: View {
-    @State var scene = DragScene()
+    @State var scene = DraggingScene()
     
     var body: some View {
         ZStack {
@@ -59,7 +62,7 @@ struct DragView: View {
                     ToggleButton(
                         isOn: false,
                         onText: "100%",
-                        offText: "100%",
+                        offText: ("\(scene.cameraZoomPercent)%"),
                         onSystemImage: "",
                         offSystemImage: "",
                         action: {
@@ -105,14 +108,14 @@ struct DragView: View {
                 HStack {
                     /// Camera mode
                     ToggleButton(
-                        isOn: scene.cameraDragOnly == false,
+                        isOn: scene.isDraggingEnabled,
                         onText: "Dragging Is Enabled",
                         offText: "Dragging Is Disabled",
                         onSystemImage: "hand.draw.fill",
                         offSystemImage: "hand.raised.fill",
                         action: {
-                            scene.cameraDragOnly.toggle()
-                            if scene.cameraDragOnly {
+                            scene.isDraggingEnabled.toggle()
+                            if scene.isDraggingEnabled {
                                 scene.endDrags(wakeAttached: true)
                             }
                         }
@@ -134,13 +137,14 @@ struct DragView: View {
 // MARK: Scene
 
 @Observable
-class DragScene: SKScene {
+class DraggingScene: SKScene, NavigationCameraDelegate, UIGestureRecognizerDelegate {
     
     // MARK: Properties
     
     /// Camera
     let navCamera = NavigationCamera()
-    var cameraDragOnly = true
+    var isDraggingEnabled = false
+    var cameraZoomPercent = 100
     
     /// Timing
     private let fixedTimestep: TimeInterval = 1/60
@@ -222,6 +226,41 @@ class DragScene: SKScene {
         entity.body.destroy()
     }
     
+    // MARK: Camera
+    
+    func setupCamera(view: UIView) {
+        navCamera.delegate = self
+        navCamera.gestureRecognizerDelegate = self
+        navCamera.gesturesView = view
+        navCamera.lock = false
+        navCamera.lockPan = false
+        navCamera.lockScale = false
+        navCamera.lockRotation = true
+        navCamera.doubleTapToReset = false
+        navCamera.maxScale = 50
+        navCamera.minScale = 0.01
+        
+        self.camera = navCamera
+        addChild(navCamera)
+    }
+    
+    func gestureRecognizer(_ gestureRecognizer: UIGestureRecognizer, shouldRecognizeSimultaneouslyWith otherGestureRecognizer: UIGestureRecognizer) -> Bool {
+        true
+    }
+    
+    func cameraDidMove(to position: CGPoint) {
+        
+    }
+    
+    func cameraDidRotate(to angle: CGFloat) {
+        
+    }
+    
+    func cameraDidScale(to scale: CGPoint) {
+        /// Scale is inverse zoom
+        cameraZoomPercent = Int((1 / scale.x * 100).rounded())
+    }
+    
     // MARK: Box2D World
     
     private func setupBox2D() {
@@ -264,64 +303,12 @@ class DragScene: SKScene {
         entities.removeAll()
     }
     
-    // MARK: Camera
-    
-    func setupCamera(view: UIView) {
-        navCamera.gesturesView = view
-        navCamera.lock = false
-        navCamera.lockPan = false
-        navCamera.lockScale = false
-        navCamera.lockRotation = false
-        navCamera.doubleTapToReset = false
-        navCamera.maxScale = 50
-        navCamera.minScale = 0.01
-        
-        self.camera = navCamera
-        addChild(navCamera)
-    }
-    
-    // MARK: Pointer
-    
-    private func createPointerBodyNode(touchRadius: CGFloat, position: B2Vec2, rotation: B2Rot) -> Entity {
-        /// Visual pointer
-        let pointerNode = SKShapeNode(circleOfRadius: touchRadius)
-        pointerNode.fillColor = SKColor.systemCyan.withAlphaComponent(0.5)
-        pointerNode.strokeColor = .black
-        pointerNode.lineWidth = 3
-        pointerNode.position = CGPoint(
-            x: points(fromMeters: position.x),
-            y: points(fromMeters: position.y)
-        )
-        pointerNode.zRotation = CGFloat(rotation.angle)
-        pointerNode.zPosition = 1000
-        addChild(pointerNode)
-        
-        /// Pointer body: kinematic target used by the motor joint
-        var bodyDef = b2BodyDef.default()
-        bodyDef.type = .b2KinematicBody
-        bodyDef.position = position
-        bodyDef.rotation = rotation
-        bodyDef.enableSleep = false
-        
-        /// No shape is needed, the joint only needs a body
-        let pointerBody = b2DWorld.createBody(bodyDef)
-        
-        let pointerBodyNode = Entity(
-            node: pointerNode,
-            body: pointerBody,
-        )
-        
-        entities.append(pointerBodyNode)
-        
-        return pointerBodyNode
-    }
-    
     // MARK: Walls
     
     private func createWalls(view: SKView) {
         let thickness: CGFloat = 15
-        let baseWidth: CGFloat = 4000
-        let sideHeight: CGFloat = 20000
+        let baseWidth: CGFloat = 1000
+        let sideHeight: CGFloat = 10000
         
         /// Ground center Y, relative to scene origin.
         let baseY: CGFloat = -300
@@ -393,8 +380,8 @@ class DragScene: SKScene {
         let groundTopY = -innerHeight / 2
         let gapAboveGround: CGFloat = 400
         
-        let columns = 5
-        let rows = 1000
+        let columns = 4
+        let rows = 4
         let cellSize: CGFloat = 80
         let blockSize = CGSize(width: 75, height: 75)
         let cornerRadius: CGFloat = 12
@@ -429,14 +416,17 @@ class DragScene: SKScene {
                     x: meters(fromPoints: position.x),
                     y: meters(fromPoints: position.y)
                 )
-//                bodyDef.linearDamping = 0
-//                bodyDef.angularDamping = 0
+                /// Tuning to prevent bodies from flying too far on drag release, but avoid gravity damping.
+                /// Tweak to taste.
+                bodyDef.linearDamping = 6
+                bodyDef.angularDamping = 6
+                bodyDef.gravityScale = 6
                 
                 let body = b2DWorld.createBody(bodyDef)
                 
                 /// Box2D material
                 var shapeDef = b2ShapeDef.default()
-                shapeDef.density = 2
+                shapeDef.density = 1
                 shapeDef.material.friction = 0.5
                 shapeDef.material.restitution = 0.2
                 
@@ -583,7 +573,7 @@ class DragScene: SKScene {
     // MARK: Touch Began
     
     override func touchesBegan(_ touches: Set<UITouch>, with event: UIEvent?) {
-        guard cameraDragOnly == false else {
+        guard isDraggingEnabled else {
             navCamera.stop()
             return
         }
@@ -643,7 +633,7 @@ class DragScene: SKScene {
                     /// Angular spring keeps the dragged body close to its starting rotation.
                     jointDef.angularHertz = 10
                     jointDef.angularDampingRatio = 1.0
-                    jointDef.maxSpringTorque = 500.0 * lever * bodyWeight
+                    jointDef.maxSpringTorque = 50000.0 * lever * bodyWeight
                 } else {
                     /// Angular velocity torque acts like mild spin friction while allowing rotation.
                     jointDef.maxVelocityTorque = 0.25 * lever * bodyWeight
@@ -699,6 +689,42 @@ class DragScene: SKScene {
     
     override func touchesCancelled(_ touches: Set<UITouch>, with event: UIEvent?) {
         endDrags(for: touches, wakeAttached: true)
+    }
+    
+    // MARK: Pointer
+    
+    private func createPointerBodyNode(touchRadius: CGFloat, position: B2Vec2, rotation: B2Rot) -> Entity {
+        /// Visual pointer
+        let pointerNode = SKShapeNode(circleOfRadius: touchRadius)
+        pointerNode.fillColor = SKColor.systemCyan.withAlphaComponent(0.5)
+        pointerNode.strokeColor = .black
+        pointerNode.lineWidth = 3
+        pointerNode.position = CGPoint(
+            x: points(fromMeters: position.x),
+            y: points(fromMeters: position.y)
+        )
+        pointerNode.zRotation = CGFloat(rotation.angle)
+        pointerNode.zPosition = 1000
+        addChild(pointerNode)
+        
+        /// Pointer body: kinematic target used by the motor joint
+        var bodyDef = b2BodyDef.default()
+        bodyDef.type = .b2KinematicBody
+        bodyDef.position = position
+        bodyDef.rotation = rotation
+        bodyDef.enableSleep = false
+        
+        /// No shape is needed, the joint only needs a body
+        let pointerBody = b2DWorld.createBody(bodyDef)
+        
+        let pointerBodyNode = Entity(
+            node: pointerNode,
+            body: pointerBody,
+        )
+        
+        entities.append(pointerBodyNode)
+        
+        return pointerBodyNode
     }
     
     // MARK: End Drag

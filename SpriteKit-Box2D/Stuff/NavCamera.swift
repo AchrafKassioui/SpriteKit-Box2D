@@ -22,7 +22,7 @@
  
  Achraf Kassioui
  Created: 8 April 2024
- Updated: 19 May 2026
+ Updated: 23 May 2026
  
  */
 
@@ -106,7 +106,8 @@ class NavigationCamera: SKCameraNode {
     /// Store a default camera rotation.
     var defaultRotation: CGFloat
     
-    /// The delegate of the gesture recognizers
+    /// The delegate of the gesture recognizers, to allow simultaneous gestures
+    /// Must be assigned before `gesturesView`
     weak var gestureRecognizerDelegate: UIGestureRecognizerDelegate?
     
     /// The view on which the gesture recognizers are setup.
@@ -630,10 +631,10 @@ class NavigationCamera: SKCameraNode {
         tapRecognizer.delaysTouchesBegan = false
         
         /// Prevent the recognizers from cancelling touch events once a gesture is recognized.
-        /// In UIKit, this property is set to true by default. Set to true to send touch events even after a gesture is recognized.
+        /// In UIKit, this property is set to true by default. Set to false to send touch events even after a gesture is recognized.
         panRecognizer.cancelsTouchesInView = false
-        pinchRecognizer.cancelsTouchesInView = false
-        rotationRecognizer.cancelsTouchesInView = false
+        pinchRecognizer.cancelsTouchesInView = true
+        rotationRecognizer.cancelsTouchesInView = true
         tapRecognizer.cancelsTouchesInView = false
         
         /// Allow `touchesEnded` to fire immediately, preventing delays caused by UIKit's default gesture handling.

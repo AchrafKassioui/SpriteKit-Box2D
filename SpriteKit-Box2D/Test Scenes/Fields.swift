@@ -1,12 +1,14 @@
 /**
  
- # Pile Of Blocks
+ # SKFieldNode + Box2D
  
- Pile test.
+ A scene that mixes SpriteKit physics with Box2D.
+ - Blocks are subject to a noise physics field (SpriteKit)
+ - Blocks collide with each other (Box2D)
  
  Achraf Kassioui
  Created 19 May 2026
- Updated 19 May 2026
+ Updated 26 May 2026
  
  */
 import SwiftUI
@@ -15,11 +17,11 @@ import SwiftBox2D
 
 // MARK: View
 
-struct PileOfBlocksView: View {
+struct FieldsView: View {
     var body: some View {
         ZStack {
             SpriteView(
-                scene: PileOfBlocksScene(),
+                scene: FieldsScene(),
                 preferredFramesPerSecond: 120,
                 options: [.ignoresSiblingOrder],
                 debugOptions: [.showsFPS, .showsNodeCount, .showsDrawCount]
@@ -30,36 +32,49 @@ struct PileOfBlocksView: View {
     }
 }
 
+#Preview {
+    FieldsView()
+}
+
 // MARK: Scene
 
-class PileOfBlocksScene: SKScene {
-
+class FieldsScene: SKScene, UIGestureRecognizerDelegate {
+    
     // MARK: Properties
-
+    
     let navCamera = NavigationCamera()
     let contentParent = SKNode()
+    
+    private struct Entity {
+        weak var node: SKNode?
+        let body: B2Body
+    }
+    private var entities: [Entity] = []
+    
+    private let palette: [SKColor] = [.systemOrange, .systemYellow, .systemTeal, .systemRed, .white, .systemGray]
+    
+    /// SpriteKit physics
+    private enum PhysicsCategory {
+        static let block: UInt32 = 1 << 0
+        static let wall: UInt32 = 1 << 1
+        static let field: UInt32 = 1 << 2
+    }
+    
+    /// When true, SpriteKit physics/fields feed motion into Box2D before Box2D solves.
+    private let shouldMergeSpriteKitPhysics = true
     
     /// Box2D
     private let b2DWorld = B2World()
     static let pointsPerMeter: CGFloat = 150
-    
-    private struct BodyNode {
-        let body: B2Body
-        weak var node: SKNode?
-    }
-    private var bodyNodes: [BodyNode] = []
-    
-    private var testJoints: [B2DistanceJoint] = []
-    private var jointDebugLines: [(joint: B2DistanceJoint, line: SKShapeNode)] = []
-    
-    private let palette: [SKColor] = [
-        .systemOrange, .systemYellow, .systemTeal,
-        .systemRed, .white, .systemGray
-    ]
+    private var pendingBox2DCommands: [() -> Void] = []
     
     /// Tap state
     private var tapStartLocation: CGPoint?
     private var tapStartTime: TimeInterval?
+    
+    /// Perf
+    var PhysicsProfiler = PhysicsStepProfiler(label: "Box2D physics")
+    var beforePhysicsTime: TimeInterval = CACurrentMediaTime()
     
     // MARK: Lifecycle
     
@@ -70,21 +85,27 @@ class PileOfBlocksScene: SKScene {
         scaleMode = .resizeFill
         anchorPoint = CGPoint(x: 0.5, y: 0.5)
         
+        physicsWorld.gravity = .zero
+        
         b2DWorld.gravity = B2Vec2(x: 0, y: 0)
-        b2DWorld.enableSleeping(false)
         
         addChild(contentParent)
         
         setupCamera(view: view)
         createWalls(parent: contentParent)
         createBlocks(parent: contentParent)
-        createJointedBlocks(parent: contentParent)
-        scheduleGravityDrop(afterSeconds: 2)
+        createField(parent: contentParent)
+        //scheduleGravityDrop(afterSeconds: 2)
+    }
+    
+    override func willMove(from view: SKView) {
+        self.removeAllChildren()
     }
     
     // MARK: Camera
     
     func setupCamera(view: UIView) {
+        navCamera.gestureRecognizerDelegate = self
         navCamera.gesturesView = view
         navCamera.lock = false
         navCamera.lockPan = false
@@ -93,10 +114,14 @@ class PileOfBlocksScene: SKScene {
         navCamera.doubleTapToReset = false
         navCamera.maxScale = 50
         navCamera.minScale = 0.01
-        navCamera.area = CGSize(width: 10000, height: 10000)
+        navCamera.area = CGSize(width: 15000, height: 30000)
         
         self.camera = navCamera
         addChild(navCamera)
+    }
+    
+    func gestureRecognizer(_ gestureRecognizer: UIGestureRecognizer, shouldRecognizeSimultaneouslyWith otherGestureRecognizer: UIGestureRecognizer) -> Bool {
+        return true
     }
     
     // MARK: Gravity
@@ -105,7 +130,11 @@ class PileOfBlocksScene: SKScene {
         run(.sequence([
             .wait(forDuration: seconds),
             .run { [weak self] in
-                self?.b2DWorld.gravity = B2Vec2(x: 0, y: -10)
+                guard let self else { return }
+                self.b2DWorld.gravity = B2Vec2(x: 0, y: -10)
+                for entity in entities {
+                    
+                }
             }
         ]))
     }
@@ -113,24 +142,41 @@ class PileOfBlocksScene: SKScene {
     // MARK: Explode
     
     private func explode(at scenePoint: CGPoint) {
-        var explosion = b2ExplosionDef.default()
+        let explosionPoint = scenePoint
         
-        /// Center of explosion in Box2D world meters.
-        explosion.position = B2Vec2(
-            x: meters(fromPoints: scenePoint.x),
-            y: meters(fromPoints: scenePoint.y)
-        )
-        
-        /// Full strength inside this radius.
-        explosion.radius = 1
-        
-        /// Strength fades to zero across this extra distance.
-        explosion.falloff = 1.0
-        
-        /// Positive pushes away, negative pulls inward.
-        explosion.impulsePerLength = 50.0
-        
-        b2DWorld.explode(explosion)
+        /// Run Box2D mutations during the Box2D phase so SpriteKit sync cannot overwrite them.
+        pendingBox2DCommands.append { [weak self] in
+            guard let self else { return }
+            
+            var explosion = b2ExplosionDef.default()
+            
+            /// Center of explosion in Box2D world meters.
+            explosion.position = B2Vec2(
+                x: meters(fromPoints: explosionPoint.x),
+                y: meters(fromPoints: explosionPoint.y)
+            )
+            
+            /// Full strength inside this radius.
+            explosion.radius = 1
+            
+            /// Strength fades to zero across this extra distance.
+            explosion.falloff = 1.0
+            
+            /// Positive pushes away, negative pulls inward.
+            explosion.impulsePerLength = 50.0
+            
+            self.b2DWorld.explode(explosion)
+        }
+    }
+    
+    // MARK: Field
+    
+    private func createField(parent: SKNode) {
+        let field = SKFieldNode.noiseField(withSmoothness: 1, animationSpeed: 1)
+        field.categoryBitMask = PhysicsCategory.field
+        field.strength = 10
+        field.falloff = 0
+        parent.addChild(field)
     }
     
     // MARK: Walls
@@ -153,6 +199,16 @@ class PileOfBlocksScene: SKScene {
             wall.position = position
             parent.addChild(wall)
             
+            /// SpriteKit body for fields
+            wall.physicsBody = SKPhysicsBody(rectangleOf: CGSize(width: width, height: height))
+            wall.physicsBody?.isDynamic = false
+            wall.physicsBody?.affectedByGravity = false
+            wall.physicsBody?.categoryBitMask = PhysicsCategory.wall
+            wall.physicsBody?.collisionBitMask = PhysicsCategory.block
+            wall.physicsBody?.contactTestBitMask = 0
+            wall.physicsBody?.fieldBitMask = 0
+            
+            /// Box2D body
             var bodyDef = b2BodyDef.default()
             bodyDef.type = .b2StaticBody
             bodyDef.position = B2Vec2(
@@ -196,17 +252,20 @@ class PileOfBlocksScene: SKScene {
             height: wallHeight,
             position: CGPoint(x: containerWidth / 2, y: floorY + wallHeight / 2)
         )
+        
+        /// Top
+        makeWall(
+            width: containerWidth,
+            height: wallThickness,
+            position: CGPoint(x: 0, y: floorY + wallHeight)
+        )
     }
     
     // MARK: Blocks
-    /**
-     
-     Spawn blocks on a grid.
-     
-     */
+
     private func createBlocks(parent: SKNode) {
-        let columns = 50
-        let rows = 50
+        let columns = 60
+        let rows = 60
         let cellSize: CGFloat = 100
         let blockSizes: [CGFloat] = [15, 30, 60, 75, 100]
         let cornerRadius: CGFloat = 9
@@ -249,13 +308,13 @@ class PileOfBlocksScene: SKScene {
                     position: position
                 )
                 
-                bodyNodes.append(BodyNode(body: body, node: block))
+                entities.append(Entity(node: block, body: body))
                 index += 1
             }
         }
         
         print("\nBox2D Physics")
-        print("\(bodyNodes.count) bodies")
+        print("\(entities.count) bodies")
     }
     
     /**
@@ -274,12 +333,33 @@ class PileOfBlocksScene: SKScene {
             isRectangle: isRectangle,
             width: width,
             height: height,
-            cornerRadius: cornerRadius
+            cornerRadius: cornerRadius,
         )
         
         let block = SKSpriteNode(texture: texture, size: CGSize(width: width, height: height))
         block.color = color
         block.colorBlendFactor = 1
+        
+        /// SpriteKit body for fields
+        if isRectangle {
+            block.physicsBody = SKPhysicsBody(rectangleOf: CGSize(width: width, height: height))
+        } else {
+            block.physicsBody = SKPhysicsBody(circleOfRadius: width / 2)
+        }
+        
+        block.physicsBody?.isDynamic = shouldMergeSpriteKitPhysics
+        block.physicsBody?.affectedByGravity = false
+        block.physicsBody?.density = 2
+        block.physicsBody?.friction = 0.5
+        block.physicsBody?.restitution = 0.2
+        block.physicsBody?.linearDamping = 0.1
+        block.physicsBody?.angularDamping = 0.1
+        
+        /// SpriteKit only collides blocks with walls.
+        block.physicsBody?.categoryBitMask = PhysicsCategory.block
+        block.physicsBody?.collisionBitMask = PhysicsCategory.wall
+        block.physicsBody?.contactTestBitMask = 0
+        block.physicsBody?.fieldBitMask = PhysicsCategory.field
         
         return block
     }
@@ -301,7 +381,7 @@ class PileOfBlocksScene: SKScene {
             x: meters(fromPoints: position.x),
             y: meters(fromPoints: position.y)
         )
-        bodyDef.linearDamping = 0
+        bodyDef.linearDamping = 0.1
         bodyDef.angularDamping = 0.1
         
         let body = b2DWorld.createBody(bodyDef)
@@ -319,7 +399,7 @@ class PileOfBlocksScene: SKScene {
             )
             body.createShape(polygon, shapeDef: shapeDef)
         } else {
-            /// Circle block matches SpriteKit's circleOfRadius(width / 2).
+            /// Circle block.
             let circle = B2Circle(
                 center: B2Vec2(x: 0, y: 0),
                 radius: meters(fromPoints: width / 2)
@@ -330,104 +410,92 @@ class PileOfBlocksScene: SKScene {
         return body
     }
     
-    // MARK: Joints
-    
-    private func createJointedBlocks(parent: SKNode) {
-        let blockSize: CGFloat = 75
-        let cornerRadius: CGFloat = 9
-        let positionA = CGPoint(x: -90, y: 350)
-        let positionB = CGPoint(x: 90, y: 350)
-        
-        /// Visual blocks
-        let blockA = createNode(isRectangle: true, width: blockSize, height: blockSize, cornerRadius: cornerRadius, color: .systemRed)
-        blockA.position = positionA
-        parent.addChild(blockA)
-        
-        let blockB = createNode(isRectangle: true, width: blockSize, height: blockSize, cornerRadius: cornerRadius, color: .systemBlue)
-        blockB.position = positionB
-        parent.addChild(blockB)
-        
-        /// Box2D bodies
-        let bodyA = createBody(isRectangle: true, width: blockSize, height: blockSize, position: positionA)
-        let bodyB = createBody(isRectangle: true, width: blockSize, height: blockSize, position: positionB)
-        
-        bodyNodes.append(BodyNode(body: bodyA, node: blockA))
-        bodyNodes.append(BodyNode(body: bodyB, node: blockB))
-        
-        /// Distance joint between body centers
-        let worldPointA = B2Vec2(x: meters(fromPoints: positionA.x), y: meters(fromPoints: positionA.y))
-        let worldPointB = B2Vec2(x: meters(fromPoints: positionB.x), y: meters(fromPoints: positionB.y))
-        let deltaX = worldPointB.x - worldPointA.x
-        let deltaY = worldPointB.y - worldPointA.y
-        let restLength = sqrt(deltaX * deltaX + deltaY * deltaY)
-        
-        var jointDef = b2DistanceJointDef.default()
-        jointDef.bodyA = bodyA
-        jointDef.bodyB = bodyB
-        jointDef.length = restLength
-        jointDef.enableSpring = false
-        
-        let joint = b2DWorld.createJoint(jointDef)
-        testJoints.append(joint)
-        
-        /// Debug line so the joint is visible in SpriteKit
-        let line = SKShapeNode()
-        line.strokeColor = .black
-        line.lineCap = .round
-        line.lineWidth = 6
-        line.zPosition = 100
-        parent.addChild(line)
-        
-        jointDebugLines.append((joint: joint, line: line))
-    }
-    
     // MARK: Update
-    
-    var box2DBeforePhysicsTime: TimeInterval = CACurrentMediaTime()
-    var box2DPhysicsProfiler = PhysicsStepProfiler(label: "Box2D physics")
     
     override func update(_ currentTime: TimeInterval) {
         navCamera.update()
+    }
+    
+    override func didEvaluateActions() {
+        /// Time before physics
+        beforePhysicsTime = CACurrentMediaTime()
+    }
+    
+    override func didSimulatePhysics() {
+        if shouldMergeSpriteKitPhysics {
+            /// Feed SpriteKit field and wall response into Box2D.
+            for entity in entities {
+                guard let node = entity.node else { continue }
+                
+                let spriteKitVelocity = node.physicsBody?.velocity ?? .zero
+                let spriteKitAngularVelocity = node.physicsBody?.angularVelocity ?? 0
+                
+                let box2DPosition = B2Vec2(
+                    x: meters(fromPoints: node.position.x),
+                    y: meters(fromPoints: node.position.y)
+                )
+                
+                let box2DVelocity = B2Vec2(
+                    x: meters(fromPoints: spriteKitVelocity.dx),
+                    y: meters(fromPoints: spriteKitVelocity.dy)
+                )
+                
+                guard
+                    box2DPosition.x.isFinite,
+                    box2DPosition.y.isFinite,
+                    box2DVelocity.x.isFinite,
+                    box2DVelocity.y.isFinite
+                else { continue }
+                
+                entity.body.setTransform(
+                    box2DPosition,
+                    .init(fromRadians: Float(node.zRotation))
+                )
+                
+                /// Preserve SpriteKit field momentum before Box2D solves contacts.
+                entity.body.linearVelocity = box2DVelocity
+                entity.body.angularVelocity = Float(spriteKitAngularVelocity)
+            }
+        }
         
-        box2DBeforePhysicsTime = CACurrentMediaTime()
+        /// Apply queued Box2D-only operations after sync and before stepping.
+        let box2DCommands = pendingBox2DCommands
+        pendingBox2DCommands.removeAll()
         
-        /// Step Box2D
+        for command in box2DCommands {
+            command()
+        }
+        
+        /// Step Box2D after SpriteKit physics.
         b2DWorld.step(1.0 / 60.0, subSteps: 4)
         
         let afterPhysicsTime = CACurrentMediaTime()
-        let physicsStepMS = (afterPhysicsTime - box2DBeforePhysicsTime) * 1000
-        box2DPhysicsProfiler.record(milliseconds: physicsStepMS)
+        let physicsStepMS = (afterPhysicsTime - beforePhysicsTime) * 1000
+        PhysicsProfiler.record(milliseconds: physicsStepMS)
         
-        /// Copy Box2D body transforms into SpriteKit nodes.
-        for pair in bodyNodes {
-            guard let node = pair.node else { continue }
+        /// Copy Box2D's result back into SpriteKit.
+        for entity in entities {
+            guard let node = entity.node else { continue }
             
-            let bodyPosition = pair.body.getPosition()
-            let bodyRotation = pair.body.getRotation()
+            let bodyPosition = entity.body.getPosition()
+            let bodyRotation = entity.body.getRotation()
+            let bodyVelocity = entity.body.linearVelocity
+            let bodyAngularVelocity = entity.body.angularVelocity
             
             node.position = CGPoint(
                 x: points(fromMeters: bodyPosition.x),
                 y: points(fromMeters: bodyPosition.y)
             )
             node.zRotation = CGFloat(bodyRotation.angle)
-        }
-        
-        /// Draw Box2D joint anchors
-        for jointDebugLine in jointDebugLines {
-            let worldPointA = jointDebugLine.joint.worldPointA()
-            let worldPointB = jointDebugLine.joint.worldPointB()
             
-            let path = CGMutablePath()
-            path.move(to: CGPoint(
-                x: points(fromMeters: worldPointA.x),
-                y: points(fromMeters: worldPointA.y)
-            ))
-            path.addLine(to: CGPoint(
-                x: points(fromMeters: worldPointB.x),
-                y: points(fromMeters: worldPointB.y)
-            ))
-            
-            jointDebugLine.line.path = path
+            /// Keep SpriteKit's proxy body synchronized only when it participates in the merge.
+            if shouldMergeSpriteKitPhysics {
+                node.physicsBody?.velocity = CGVector(
+                    dx: points(fromMeters: bodyVelocity.x),
+                    dy: points(fromMeters: bodyVelocity.y)
+                )
+                node.physicsBody?.angularVelocity = CGFloat(bodyAngularVelocity)
+            }
         }
     }
     

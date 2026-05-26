@@ -56,8 +56,8 @@ struct JointsView: View {
                     /// Reset zoom to 1:1
                     ToggleButton(
                         isOn: false,
-                        onText: "100%",
-                        offText: "100%",
+                        onText: "\(scene.cameraZoomPercent)%",
+                        offText: "\(scene.cameraZoomPercent)%",
                         onSystemImage: "",
                         offSystemImage: "",
                         action: {
@@ -132,13 +132,14 @@ struct JointsView: View {
 // MARK: Scene
 
 @Observable
-class JointsScene: SKScene {
+class JointsScene: SKScene, NavigationCameraDelegate, UIGestureRecognizerDelegate {
     
     // MARK: Properties
     
     /// Camera
     let navCamera = NavigationCamera()
     var cameraDragOnly = false
+    var cameraZoomPercent = 100
     
     /// Timing
     private let fixedTimestep: TimeInterval = 1/60
@@ -164,8 +165,7 @@ class JointsScene: SKScene {
         weak var node: SKNode?
         let body: B2Body
     }
-    
-    private var entities: [Entity] = []
+    private var entities: [B2BodyId: Entity] = [:]
     
     /// Layers
     enum ZPosition {
@@ -219,28 +219,13 @@ class JointsScene: SKScene {
     }
     
     override func willMove(from view: SKView) {
-        cleanup()
-    }
-    
-    // MARK: Cleanup
-    
-    deinit {
-        cleanup()
-    }
-    
-    private func cleanup() {
-        endDrags(wakeAttached: false)
-        
-        for entity in entities {
-            removeEntity(entity)
-        }
-        
+        removeContent()
         self.removeAllChildren()
     }
     
-    private func removeEntity(_ entity: Entity) {
-        entity.node?.removeFromParent()
-        entity.body.destroy()
+    deinit {
+        removeContent()
+        self.removeAllChildren()
     }
     
     // MARK: Box2D World
@@ -255,7 +240,7 @@ class JointsScene: SKScene {
                 guard let self else { return }
                 b2DWorld.gravity = B2Vec2(x: 0, y: -gravityLength)
                 
-                for entity in entities {
+                for entity in entities.values {
                     entity.body.setAwake(true)
                 }
             }
@@ -264,14 +249,49 @@ class JointsScene: SKScene {
         run(action)
     }
     
+    // MARK: Camera
+    
+    func setupCamera(view: UIView) {
+        navCamera.gestureRecognizerDelegate = self
+        navCamera.delegate = self
+        navCamera.gesturesView = view
+        navCamera.lock = false
+        navCamera.lockPan = false
+        navCamera.lockScale = false
+        navCamera.lockRotation = true
+        navCamera.doubleTapToReset = false
+        navCamera.maxScale = 50
+        navCamera.minScale = 0.01
+        
+        self.camera = navCamera
+        addChild(navCamera)
+    }
+    
+    func cameraDidMove(to position: CGPoint) {
+        
+    }
+    
+    func cameraDidRotate(to angle: CGFloat) {
+        
+    }
+    
+    func cameraDidScale(to scale: CGPoint) {
+        /// Scale is inverse zoom
+        cameraZoomPercent = Int((1 / scale.x * 100).rounded())
+    }
+    
+    func gestureRecognizer(_ gestureRecognizer: UIGestureRecognizer, shouldRecognizeSimultaneouslyWith otherGestureRecognizer: UIGestureRecognizer) -> Bool {
+        return true
+    }
+    
     // MARK: Content
     
     func createContent() {
         guard let view = self.view else { return }
         removeContent()
         createWalls(view: view)
-        //createWeldJoints()
-        createRevoluteChain()
+        createWeldJoints()
+        //createRevoluteChain()
     }
     
     private func removeContent() {
@@ -287,27 +307,16 @@ class JointsScene: SKScene {
         weldJoints.removeAll()
         
         /// Remove all SpriteKit nodes and Box2D bodies owned by the scene content.
-        for entity in entities {
+        for entity in entities.values {
             removeEntity(entity)
         }
         
         entities.removeAll()
     }
     
-    // MARK: Camera
-    
-    func setupCamera(view: UIView) {
-        navCamera.gesturesView = view
-        navCamera.lock = false
-        navCamera.lockPan = false
-        navCamera.lockScale = false
-        navCamera.lockRotation = false
-        navCamera.doubleTapToReset = false
-        navCamera.maxScale = 50
-        navCamera.minScale = 0.01
-        
-        self.camera = navCamera
-        addChild(navCamera)
+    private func removeEntity(_ entity: Entity) {
+        entity.node?.removeFromParent()
+        entity.body.destroy()
     }
     
     // MARK: Pointer
@@ -336,14 +345,14 @@ class JointsScene: SKScene {
         /// No shape is needed, the joint only needs a body
         let pointerBody = b2DWorld.createBody(bodyDef)
         
-        let pointerBodyNode = Entity(
+        let entity = Entity(
             node: pointerNode,
             body: pointerBody,
         )
         
-        entities.append(pointerBodyNode)
+        entities[pointerBody.id] = entity
         
-        return pointerBodyNode
+        return entity
     }
     
     // MARK: Walls
@@ -412,7 +421,7 @@ class JointsScene: SKScene {
             
             body.createShape(polygon, shapeDef: shapeDef)
             
-            entities.append(Entity(node: node, body: body))
+            entities[body.id] = Entity(node: node, body: body)
         }
     }
     
@@ -425,7 +434,7 @@ class JointsScene: SKScene {
     // MARK: Revolute Chain
     
     private func createRevoluteChain(linksShouldCollideWithEachOther: Bool = true) {
-        let blockCount = 2000
+        let blockCount = 500
         let cellSize: CGFloat = 44
         let blockSize = CGSize(width: 20, height: 38)
         /// Lowest block center Y, the chain grows upward
@@ -484,8 +493,8 @@ class JointsScene: SKScene {
             body.createShape(polygon, shapeDef: shapeDef)
             
             let entity = Entity(node: node, body: body)
-            entities.append(entity)
             chainEntities.append(entity)
+            entities[body.id] = Entity(node: node, body: body)
         }
         
         for index in 0..<(chainEntities.count - 1) {
@@ -521,8 +530,8 @@ class JointsScene: SKScene {
     // MARK: Weld Joints
     
     private func createWeldJoints() {
-        let columns = 6
-        let rows = 6
+        let columns = 2
+        let rows = 2
         let cellSize: CGFloat = 82
         let blockSize = CGSize(width: 75, height: 75)
         let cornerRadius: CGFloat = 9
@@ -565,15 +574,15 @@ class JointsScene: SKScene {
                     x: meters(fromPoints: position.x),
                     y: meters(fromPoints: position.y)
                 )
-                bodyDef.linearDamping = 4
-                bodyDef.angularDamping = 4
+                bodyDef.linearDamping = 0.5
+                bodyDef.angularDamping = 0.5
                 bodyDef.gravityScale = 4
                 
                 let body = b2DWorld.createBody(bodyDef)
                 
                 /// Box2D material
                 var shapeDef = b2ShapeDef.default()
-                shapeDef.density = 2
+                shapeDef.density = 1
                 shapeDef.material.friction = 0.5
                 shapeDef.material.restitution = 0.2
                 
@@ -599,8 +608,8 @@ class JointsScene: SKScene {
                 body.createShape(roundedPolygon, shapeDef: shapeDef)
                 
                 let entity = Entity(node: node, body: body)
-                entities.append(entity)
                 rowEntities.append(entity)
+                entities[body.id] = Entity(node: node, body: body)
             }
             
             gridEntities.append(rowEntities)
@@ -731,18 +740,39 @@ class JointsScene: SKScene {
     }
     
     override func didFinishUpdate() {
-        /// Retrieve simulation results
-        for entity in entities {
+        /// Use Box2D body events to efficiently sync with SpriteKit nodes
+        let bodyEvents = b2DWorld.getBodyEvents()
+
+        /// If no body moved, return
+        guard let moveEvents = bodyEvents.moveEvents else { return }
+        
+        /**
+         
+         Box2D gives body move events as two separate pieces:
+         
+         - moveEvents: a memory address to the first event in a C array
+         - moveCount: how many move events are stored there
+         
+         The events are stored next to each other in memory.
+         Swift does not see this as a normal Array, so we convert moveCount to Int and use it as loop counter.
+         
+         */
+        for index in 0..<Int(bodyEvents.moveCount) {
+            let moveEvent = moveEvents[index]
+            
+            guard let entity = entities[moveEvent.bodyId] else { continue }
             guard let node = entity.node else { continue }
             
-            let bodyPosition = entity.body.getPosition()
-            let bodyRotation = entity.body.getRotation()
-            
             node.position = CGPoint(
-                x: points(fromMeters: bodyPosition.x),
-                y: points(fromMeters: bodyPosition.y)
+                x: points(fromMeters: moveEvent.transform.p.x),
+                y: points(fromMeters: moveEvent.transform.p.y)
             )
-            node.zRotation = CGFloat(bodyRotation.angle)
+            
+            node.zRotation = CGFloat(moveEvent.transform.q.angle)
+            
+            if moveEvent.fellAsleep {
+                /// Optional: mark this entity as sleeping
+            }
         }
         
         /// Draw dragging joints
@@ -882,7 +912,7 @@ class JointsScene: SKScene {
             let gravityStrength = max(b2DWorld.gravity.length, gravityLength)
             let bodyWeight = max(massData.mass * gravityStrength, 1.0)
             
-            jointDef.maxSpringForce = 80 * bodyWeight
+            jointDef.maxSpringForce = 580 * bodyWeight
             
             if massData.mass > 0.0 {
                 let lever = sqrt(massData.rotationalInertia / massData.mass)
@@ -955,11 +985,16 @@ class JointsScene: SKScene {
         for (touch, drag) in activeDrags {
             if let touches, touches.contains(touch) == false { continue }
             
+            let pointerBodyId = drag.pointerEntity.body.id
+            
+            /// Remove storage first, before destroying the body mutates its id.
+            entities[pointerBodyId] = nil
+            activeDrags.removeValue(forKey: touch)
+            
+            /// Destroy objects after they are no longer reachable from scene storage.
             drag.joint.destroy(wakeAttached: wakeAttached)
             drag.jointViz.removeFromParent()
             removeEntity(drag.pointerEntity)
-            entities.removeAll { $0.body.id == drag.pointerEntity.body.id }
-            activeDrags.removeValue(forKey: touch)
         }
     }
     
@@ -992,7 +1027,7 @@ class JointsScene: SKScene {
         b2DWorld.overlapShape(probe, filter: .default()) { shape in
             let bodyId = shape.getBody()
             
-            guard let entity = entities.first(where: { $0.body.id == bodyId }) else {
+            guard let entity = entities[bodyId] else {
                 return true
             }
             
