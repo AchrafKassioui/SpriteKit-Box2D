@@ -24,6 +24,9 @@ struct Home: View {
                 debugOptions: [.showsFPS, .showsNodeCount, .showsDrawCount]
             )
             .ignoresSafeArea()
+            .onAppear {
+                Presets.stack(scene)
+            }
             
             VStack {
                 HStack{
@@ -72,34 +75,36 @@ struct Home: View {
                     
                     Spacer()
                     
-                    /// Presets
-                    Menu {
-                        Button(action: {
-                            scene.randomPile()
-                        }, label: {
-                            Text("Random Pile")
-                        })
-                        
-                        Button(action: {
-                            scene.gridStack()
-                        }, label: {
-                            Text("Grid Stack")
-                        })
-                        
-                        Button(action: {
-                            scene.verticalChain()
-                        }, label: {
-                            Text("Vertical Chain")
-                        })
-                        
-                        Button(action: {
-                            scene.removeContent()
-                        }, label: {
-                            Text("Clear")
-                        })
-                    } label: {
-                        Label("Presets", systemImage: "shippingbox.fill")
-                            .frame(width: 100, height: 20)
+                    Group {
+                        /// Presets
+                        Menu {
+                            Button(action: {
+                                Presets.stack(scene)
+                            }, label: {
+                                Text("Stack")
+                            })
+                            
+                            Button(action: {
+                                Presets.pile(scene)
+                            }, label: {
+                                Text("Pile")
+                            })
+                            
+                            Button(action: {
+                                Presets.weldStack(scene)
+                            }, label: {
+                                Text("Weld Stack")
+                            })
+                            
+                            Button(action: {
+                                Presets.verticalChain(scene)
+                            }, label: {
+                                Text("Vertical Chain")
+                            })
+                        } label: {
+                            Label("Presets", systemImage: "shippingbox.fill")
+                                .frame(width: 100, height: 20)
+                        }
                     }
                     .buttonStyle(.borderedProminent)
                     .tint(.gray.opacity(0.5))
@@ -111,8 +116,8 @@ struct Home: View {
                 HStack {
                     ToggleButton(
                         isOn: scene.enableDrag,
-                        onText: "Drag ON",
-                        offText: "Drag OFF",
+                        onText: "Dragging ON",
+                        offText: "Dragging OFF",
                         onSystemImage: "hand.draw.fill",
                         offSystemImage: "hand.raised.fill",
                         action: {
@@ -138,24 +143,34 @@ struct Home: View {
 
 // MARK: Presets
 
-extension Scene {
+enum Presets {
     
-    func randomPile() {
-        removeContent()
-        createGround()
-        createBlockGrid(columns: 12, rows: 10, startY: -180, randomRotation: true)
+    static func pile(_ scene: SpriteKit_Box2D.Scene) {
+        scene.removeContent()
+        scene.setupBox2D(gravityLength: -10)
+        scene.createGround()
+        scene.createPile(baseCount: 12, startY: -260)
     }
     
-    func gridStack() {
-        removeContent()
-        createGround()
-        createBlockGrid(columns: 6, rows: 8, startY: -180, randomRotation: false)
+    static func stack(_ scene: SpriteKit_Box2D.Scene) {
+        scene.removeContent()
+        scene.setupBox2D(gravityLength: -10)
+        scene.createGround()
+        scene.createStack(columns: 4, rows: 6, startY: -180)
     }
     
-    func verticalChain() {
-        removeContent()
-        createGround()
-        createVerticalChain(linkCount: 500, startY: -1800)
+    static func weldStack(_ scene: SpriteKit_Box2D.Scene) {
+        scene.removeContent()
+        scene.setupBox2D(gravityLength: -10)
+        scene.createWalls()
+        scene.createWeldJoints(drawJoints: true)
+    }
+    
+    static func verticalChain(_ scene: SpriteKit_Box2D.Scene) {
+        scene.removeContent()
+        scene.setupBox2D(gravityLength: -10)
+        scene.createGround()
+        scene.createVerticalChain(linkCount: 200, startY: -400, drawJoints: true)
     }
     
 }

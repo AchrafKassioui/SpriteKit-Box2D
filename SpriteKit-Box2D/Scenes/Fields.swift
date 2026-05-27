@@ -133,7 +133,7 @@ class FieldsScene: SKScene, UIGestureRecognizerDelegate {
                 guard let self else { return }
                 self.b2DWorld.gravity = B2Vec2(x: 0, y: -10)
                 for entity in entities {
-                    
+                    entity.body.setAwake(true)
                 }
             }
         ]))

@@ -2,7 +2,7 @@
  
  # Joints
  
- Physics joints test scene wtih SpriteKit and Box2D v3
+ Physics joints test scene wtih SpriteKit and Box2D v3.
  
  ## Notes
  
@@ -423,12 +423,6 @@ class JointsScene: SKScene, NavigationCameraDelegate, UIGestureRecognizerDelegat
             
             entities[body.id] = Entity(node: node, body: body)
         }
-    }
-    
-    // MARK: Chain
-    
-    private func createChain() {
-        
     }
     
     // MARK: Revolute Chain

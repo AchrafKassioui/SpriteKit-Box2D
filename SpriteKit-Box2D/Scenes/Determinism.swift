@@ -1,6 +1,6 @@
 /**
  
- # Determinism Test
+ # Determinism Scene
  
  A scene to test Box2D determinism.
  

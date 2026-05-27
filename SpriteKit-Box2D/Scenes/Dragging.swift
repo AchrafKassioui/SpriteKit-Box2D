@@ -1,22 +1,24 @@
 /**
  
- # Dragging
+ # Dragging Scene
  
- A test scene to implement dragging with physics in Box2D v3.
+ A scene that implements dragging with physics in Box2D v3.
  
- - On touchesBegan, a kinematic pointer is created, and a motor joint is created between the pointer and the touched block.
- - TouchesMoved set the target position of the pointer
- - Update sets the position of the pointer with velocity
- - The joint does the rest.
+ - On touchesBegan, a kinematic pointer body of some size is created.
+ - Hit detection is made with an overlap shape of that size.
+ - A motor joint is created between the pointer body and the touched entity.
+ - TouchesMoved sets the target position of the pointer.
+ - Fixed update moves the pointer to the target position using velocity.
+ - The joint pull/pushes the dragged entity.
  
 ## Notes
  
- - With Box2D version 3, it seems motor joint has replaced the mouse joint as the go-to joint for dragging with physics.
+ - With Box2D version 3, it seems motor joint has replaced the mouse joint as the go-to implementation for physics-based dragging.
  - Box2D's perfomance in release build are much better than in debug build.
  
  Achraf Kassioui
  Created 20 May 2026
- Updated 24 May 2026
+ Updated 27 May 2026
  
  */
 import SpriteKit
@@ -205,11 +207,11 @@ class DraggingScene: SKScene, NavigationCameraDelegate, UIGestureRecognizerDeleg
         cleanup()
     }
     
-    // MARK: Cleanup
-    
     deinit {
         cleanup()
     }
+    
+    // MARK: Cleanup
     
     private func cleanup() {
         endDrags(wakeAttached: false)
@@ -419,8 +421,8 @@ class DraggingScene: SKScene, NavigationCameraDelegate, UIGestureRecognizerDeleg
                 /// Tuning to prevent bodies from flying too far on drag release, but avoid gravity damping.
                 /// Tweak to taste.
                 bodyDef.linearDamping = 6
-                bodyDef.angularDamping = 6
-                bodyDef.gravityScale = 6
+                bodyDef.angularDamping = 2
+                bodyDef.gravityScale = 10
                 
                 let body = b2DWorld.createBody(bodyDef)
                 
@@ -616,7 +618,7 @@ class DraggingScene: SKScene, NavigationCameraDelegate, UIGestureRecognizerDeleg
             jointDef.base.localFrameA.p = pointerAnchor
             jointDef.base.localFrameB.p = draggedAnchor
             
-            /// Spring tuning: lower hertz/force feels softer, higher feels more direct.
+            /// Spring/drag tuning
             jointDef.linearHertz = 7.5
             jointDef.linearDampingRatio = 1
             

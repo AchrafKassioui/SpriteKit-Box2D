@@ -2,11 +2,11 @@
  
  # Scene
  
- Main SpriteKit scene where content is added.
+ Main SpriteKit scene where presets are loaded.
  
  Achraf Kassioui
  Created 23 May 2026
- Updated 24 May 2026
+ Updated 26 May 2026
  
  */
 import SpriteKit
@@ -25,12 +25,18 @@ enum PhysicsCategory {
     static let block: UInt64 = 0x0004
 }
 
-/// Layers
 enum ZPosition {
     static let background: CGFloat = 0
     static let content: CGFloat = 1
     static let viz: CGFloat = 2
     static let UI: CGFloat = 3
+}
+
+struct DragState {
+    let pointerEntity: Entity
+    let joint: B2MotorJoint
+    var targetPosition: B2Vec2
+    let targetRotation: B2Rot
 }
 
 // MARK: Scene
@@ -42,7 +48,7 @@ class Scene: SKScene, NavigationCameraDelegate, UIGestureRecognizerDelegate {
     
     /// Camera
     let navCamera = NavigationCamera()
-    var enableDrag = false
+    var enableDrag = true
     var cameraZoomPercent = 100
     
     /// Timing
@@ -54,28 +60,22 @@ class Scene: SKScene, NavigationCameraDelegate, UIGestureRecognizerDelegate {
     /// Box2D
     private static let pointsPerMeter: CGFloat = 150 /// In SpriteKit, 150 points = 1 meter
     private let gravityLength: Float = 10
-    let b2DWorld = B2World()
+    var b2DWorld = B2World()
     
     /// Entities
+    let contentParent = SKNode()
     var entities: [B2BodyId: Entity] = [:]
     
-    /// Joints viz
-    struct WeldJoint {
-        let joint: B2WeldJoint
-        let bodyA: B2Body
-        let bodyB: B2Body
-        let jointViz: SKShapeNode
+    /// Joints visualization    
+    struct VisualizedJoint {
+        let joint: B2Joint
+        let node: SKShapeNode
+        let drawsBodyBAnchor: Bool
     }
-    var weldJoints: [WeldJoint] = []
+    
+    var visualizedJoints: [VisualizedJoint] = []
     
     /// Dragging
-    private struct DragState {
-        let pointerEntity: Entity
-        let joint: B2MotorJoint
-        let jointViz: SKShapeNode
-        var targetPosition: B2Vec2
-        let targetRotation: B2Rot
-    }
     private var activeDrags: [UITouch: DragState] = [:]
     private let shouldMaintainAngle: Bool = true
     
@@ -92,10 +92,7 @@ class Scene: SKScene, NavigationCameraDelegate, UIGestureRecognizerDelegate {
         /// Camera
         setupCamera(view: view)
         
-        /// Box2D
-        setupBox2D()
-        
-        //antiJerk()
+        addChild(contentParent)
     }
     
     override func willMove(from view: SKView) {
@@ -110,23 +107,10 @@ class Scene: SKScene, NavigationCameraDelegate, UIGestureRecognizerDelegate {
     
     // MARK: Box2D World
     
-    private func setupBox2D() {
-        b2DWorld.gravity = B2Vec2(x: 0, y: 0)
+    func setupBox2D(gravityLength: Float) {
+        b2DWorld = B2World()
+        b2DWorld.gravity = B2Vec2(x: 0, y: gravityLength)
         b2DWorld.restitutionThreshold = 0
-        
-        let action = SKAction.sequence([
-            .wait(forDuration: 2),
-            .run { [weak self] in
-                guard let self else { return }
-                b2DWorld.gravity = B2Vec2(x: 0, y: -gravityLength)
-                
-                for entity in entities.values {
-                    entity.body.setAwake(true)
-                }
-            }
-        ])
-        action.timingMode = .linear
-        run(action)
     }
     
     // MARK: Camera
@@ -170,21 +154,19 @@ class Scene: SKScene, NavigationCameraDelegate, UIGestureRecognizerDelegate {
         /// Destroy drag joints first because they reference bodies.
         endDrags(wakeAttached: false)
         
-        /// Destroy weld joints before destroying their connected bodies.
-        for weldJoint in weldJoints {
-            weldJoint.joint.destroy(wakeAttached: false)
-            weldJoint.jointViz.removeFromParent()
+        /// Remove joint visualization nodes.
+        for visualizedJoint in visualizedJoints {
+            visualizedJoint.node.removeFromParent()
         }
         
-        weldJoints.removeAll()
+        visualizedJoints.removeAll()
         
-        /// Remove all SpriteKit nodes and Box2D bodies owned by the current preset.
-        let removedEntities = Array(entities.values)
-        entities.removeAll()
-        
-        for entity in removedEntities {
+        /// Remove all SpriteKit nodes and Box2D bodies owned by the scene content.
+        for entity in entities.values {
             removeEntity(entity)
         }
+        
+        entities.removeAll()
     }
     
     private func removeEntity(_ entity: Entity) {
@@ -192,82 +174,106 @@ class Scene: SKScene, NavigationCameraDelegate, UIGestureRecognizerDelegate {
         entity.body.destroy()
     }
     
-    // MARK: Ground
+    // MARK: Joint Visualization
     
-    func createGround() {
-        let size = CGSize(width: 2000, height: 15)
-        let position = CGPoint(x: 0, y: -300)
-        
-        /// Visual node
-        let node = SKShapeNode(rectOf: size)
-        node.fillColor = .gray
+    func addJointVisualization(
+        for joint: B2Joint,
+        drawsBodyBAnchor: Bool
+    ) {
+        /// SpriteKit node used to draw the joint between its two body-local anchors.
+        let node = SKShapeNode()
         node.strokeColor = .black
-        node.position = position
-        node.zPosition = ZPosition.content
-        addChild(node)
+        node.fillColor = .black
+        node.lineWidth = 3
+        node.lineCap = .round
+        node.zPosition = ZPosition.viz
+        contentParent.addChild(node)
         
-        /// Box2D body
-        var bodyDef = b2BodyDef.default()
-        bodyDef.type = .b2StaticBody
-        bodyDef.position = B2Vec2(
-            x: meters(fromPoints: position.x),
-            y: meters(fromPoints: position.y)
-        )
-        
-        let body = b2DWorld.createBody(bodyDef)
-        
-        var shapeDef = b2ShapeDef.default()
-        shapeDef.density = 0
-        shapeDef.filter.categoryBits = PhysicsCategory.wall
-        
-        /// Box2D box dimensions are half extents in meters.
-        let polygon = B2Polygon.makeBox(
-            halfWidth: meters(fromPoints: size.width / 2),
-            halfHeight: meters(fromPoints: size.height / 2)
-        )
-        
-        body.createShape(polygon, shapeDef: shapeDef)
-        
-        entities[body.id] = Entity(node: node, body: body)
+        visualizedJoints.append(VisualizedJoint(
+            joint: joint,
+            node: node,
+            drawsBodyBAnchor: drawsBodyBAnchor
+        ))
     }
     
-    // MARK: Sync Rendering
-    
-    private func syncRendering() {
-        /// Get bodies that moved
-        let bodyEvents = b2DWorld.getBodyEvents()
-        
-        /// If no body moved, return
-        guard let moveEvents = bodyEvents.moveEvents else { return }
-        
-        /**
-         
-         bodyEvents has two separate pieces:
-         
-         - moveEvents: a memory address to the first event in a C array
-         - moveCount: how many move events are stored there
-         
-         The events are stored next to each other in memory.
-         Swift does not see this as a normal Array, so we convert moveCount to Int and use it as loop counter.
-         
-         */
-        for index in 0..<Int(bodyEvents.moveCount) {
-            let moveEvent = moveEvents[index]
+    func visualizeJoints() {
+        for visualizedJoint in visualizedJoints {
+            guard visualizedJoint.joint.isValid() else { continue }
             
-            guard let entity = entities[moveEvent.bodyId] else { continue }
-            guard let node = entity.node else { continue }
+            let bodyA = B2Body(id: visualizedJoint.joint.getBodyA())
+            let bodyB = B2Body(id: visualizedJoint.joint.getBodyB())
             
-            node.position = CGPoint(
-                x: points(fromMeters: moveEvent.transform.p.x),
-                y: points(fromMeters: moveEvent.transform.p.y)
+            let worldFrameA = bodyA.getTransform() * visualizedJoint.joint.localFrameA
+            let worldFrameB = bodyB.getTransform() * visualizedJoint.joint.localFrameB
+            
+            let pointA = CGPoint(
+                x: points(fromMeters: worldFrameA.p.x),
+                y: points(fromMeters: worldFrameA.p.y)
             )
             
-            node.zRotation = CGFloat(moveEvent.transform.q.angle)
+            let pointB = CGPoint(
+                x: points(fromMeters: worldFrameB.p.x),
+                y: points(fromMeters: worldFrameB.p.y)
+            )
             
-            if moveEvent.fellAsleep {
-                /// This body is sleeping
-            }
+            let path = CGMutablePath()
+            
+            /// Truth: line between both joint anchors. For weld joints this may be a tiny dot.
+            path.move(to: pointA)
+            path.addLine(to: pointB)
+            
+            /// Truth: draw body A joint frame.
+            addFramePath(
+                to: path,
+                transform: worldFrameA,
+                axisLength: 14
+            )
+            
+            /// Truth: draw body B joint frame.
+            addFramePath(
+                to: path,
+                transform: worldFrameB,
+                axisLength: 10
+            )
+            
+            visualizedJoint.node.path = path
         }
+    }
+    
+    private func addFramePath(
+        to path: CGMutablePath,
+        transform: B2Transform,
+        axisLength: CGFloat
+    ) {
+        let origin = CGPoint(
+            x: points(fromMeters: transform.p.x),
+            y: points(fromMeters: transform.p.y)
+        )
+        
+        let angle = CGFloat(transform.q.angle)
+        
+        let xAxisEnd = CGPoint(
+            x: origin.x + cos(angle) * axisLength,
+            y: origin.y + sin(angle) * axisLength
+        )
+        
+        let yAxisEnd = CGPoint(
+            x: origin.x + cos(angle + .pi / 2) * axisLength,
+            y: origin.y + sin(angle + .pi / 2) * axisLength
+        )
+        
+        path.move(to: origin)
+        path.addLine(to: xAxisEnd)
+        
+        path.move(to: origin)
+        path.addLine(to: yAxisEnd)
+        
+        path.addEllipse(in: CGRect(
+            x: origin.x - 2,
+            y: origin.y - 2,
+            width: 4,
+            height: 4
+        ))
     }
     
     // MARK: Update
@@ -307,7 +313,7 @@ class Scene: SKScene, NavigationCameraDelegate, UIGestureRecognizerDelegate {
     }
     
     override func didFinishUpdate() {
-        syncRendering()
+        
     }
     
     // MARK: Fixed Update
@@ -324,6 +330,48 @@ class Scene: SKScene, NavigationCameraDelegate, UIGestureRecognizerDelegate {
         
         /// Run the Box2D simulation
         b2DWorld.step(Float(fixedTimestep), subSteps: 4)
+        
+        syncRendering()
+        visualizeJoints()
+    }
+    
+    // MARK: Sync Rendering
+    
+    private func syncRendering() {
+        /// Get bodies that moved
+        let bodyEvents = b2DWorld.getBodyEvents()
+        
+        /// If no body moved, return
+        guard let moveEvents = bodyEvents.moveEvents else { return }
+        
+        /**
+         
+         bodyEvents has two separate pieces:
+         
+         - moveEvents: a memory address to the first event in a C array
+         - moveCount: how many move events are stored there
+         
+         The events are stored next to each other in memory.
+         Swift does not see this as a normal Array, so we convert moveCount to Int and use it as loop counter.
+         
+         */
+        for index in 0..<Int(bodyEvents.moveCount) {
+            let moveEvent = moveEvents[index]
+            
+            guard let entity = entities[moveEvent.bodyId] else { continue }
+            guard let node = entity.node else { continue }
+            
+            node.position = CGPoint(
+                x: points(fromMeters: moveEvent.transform.p.x),
+                y: points(fromMeters: moveEvent.transform.p.y)
+            )
+            
+            node.zRotation = CGFloat(moveEvent.transform.q.angle)
+            
+            if moveEvent.fellAsleep {
+                /// This body is sleeping
+            }
+        }
     }
     
     // MARK: Touch Began
@@ -399,22 +447,18 @@ class Scene: SKScene, NavigationCameraDelegate, UIGestureRecognizerDelegate {
             
             let joint = b2DWorld.createJoint(jointDef)
             
-            /// Visualize the joint
-            let jointVizNode = SKShapeNode()
-            jointVizNode.strokeColor = .black
-            jointVizNode.fillColor = .black
-            jointVizNode.lineWidth = 3
-            jointVizNode.lineCap = .round
-            jointVizNode.zPosition = ZPosition.viz
-            addChild(jointVizNode)
-            
             /// Store drag state
             activeDrags[touch] = DragState(
                 pointerEntity: pointerBodyNode,
                 joint: joint,
-                jointViz: jointVizNode,
                 targetPosition: worldPosition,
                 targetRotation: targetRotation
+            )
+            
+            /// Visualize joint
+            addJointVisualization(
+                for: joint,
+                drawsBodyBAnchor: true
             )
         }
     }
@@ -493,9 +537,17 @@ class Scene: SKScene, NavigationCameraDelegate, UIGestureRecognizerDelegate {
             entities[pointerBodyId] = nil
             activeDrags.removeValue(forKey: touch)
             
+            /// Remove the joint visualization
+            for visualizedJoint in visualizedJoints where visualizedJoint.joint === drag.joint {
+                visualizedJoint.node.removeFromParent()
+            }
+            
+            visualizedJoints.removeAll { visualizedJoint in
+                visualizedJoint.joint === drag.joint
+            }
+            
             /// Destroy objects after they are no longer reachable from scene storage.
             drag.joint.destroy(wakeAttached: wakeAttached)
-            drag.jointViz.removeFromParent()
             removeEntity(drag.pointerEntity)
         }
     }
@@ -561,6 +613,17 @@ class Scene: SKScene, NavigationCameraDelegate, UIGestureRecognizerDelegate {
     
 }
 
+/**
+ 
+ SpriteKit was running slow on iPhone 13 with iOS 26.5.
+ I noticed performance dropped when number of nodes was low.
+ Made this function to add nodes.
+ Results: didn't help. However using sprite nodes instead of shape nodes in presets did help.
+ It's still a bug that affects iPhone 13 (A15 chip). Shapes run well on A17 Pro and M1 Pro.
+ 
+ Updated: 26 May 2026
+ 
+ */
 extension Scene {
     
     func antiJerk() {

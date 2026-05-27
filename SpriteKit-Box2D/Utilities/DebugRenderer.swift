@@ -5,12 +5,14 @@
  Renders Box2D debug as SpriteKit nodes.
  
  Box2D exposes a debug draw interface via `b2DebugDraw`, a struct of C function pointers.
- This renderer assigns drawing functions to those slots.
+ This renderer assigns SpriteKit drawing functions to those slots.
  
  ## Usage
  
  Each frame after Box2D simulation in SKScene, call `draw(world:)`.
  Use `clear()` to remove the debug nodes.
+ 
+ Note: performance drops when too many bodies are present.
  
  Achraf Kassioui
  Created 20 May 2026
@@ -117,7 +119,7 @@ class Box2DDebugRenderer {
         return SKColor(red: red, green: green, blue: blue, alpha: alpha)
     }
     
-    // MARK: Shape Builders
+    // MARK: SpriteKit Drawing
     
     func addPoint(position: B2Vec2, size: Float, color: B2HexColor) {
         let radius = CGFloat(size) / 2
