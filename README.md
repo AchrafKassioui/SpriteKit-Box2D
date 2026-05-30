@@ -21,7 +21,7 @@ To run Box2D with SpriteKit, a scene can be structured as follows:
 - For each visual node, create a Box2D body with a collision shape that represents it in the simulation.
 - Link each SpriteKit node to its Box2D body. For example, create an `Entity` struct that references both, then store entities in an array or dictionary.
 - Step the Box2D simulation with a fixed timestep, typically 1/60 second.
-- After each Box2D step, sync the simulation result back to SpriteKit by applying Box2D body transforms to SpriteKit nodes.
+- Before SpriteKit renders the frame, sync the simulation result back by applying Box2D body transforms to SpriteKit nodes.
 
 For a minimal setup, stepping Box2D directly from SpriteKit `update(_:)` is enough. For a production app, use a fixed-step accumulator so Box2D receives the same timestep even if SpriteKit renders at 60 fps, 120 fps, or with occasional frame drops.
 
@@ -119,13 +119,7 @@ What happens if we use a time scale of 0.5 or 0.1? We will get physics at 30fps 
 
 What happens if we use different timesteps? 
 
-## Swift and C
-
-Making SpriteKit and Box2D v3.x.x work together is surprisingly approachable. Thanks to Luiz Fernando's wrapper, You mostly use a Swift-like syntax on top of Box2D C API.
-
-You could make your own wrapper or bridge. Add the original source code of Box2D directly inside your Xcode project, and the C API to Swift.
-
-This is possible because C and C++ are first class languages in Xcode and Mac. Xcode can compile them, and many of Apple's own framework use C. SpriteKit itself is an Objective-C engine. Objective-C is a superset of C.
+[TBD]
 
 ## Screenshots
 

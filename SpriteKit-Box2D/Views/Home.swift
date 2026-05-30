@@ -184,7 +184,7 @@ enum Presets {
         scene.removeContent()
         scene.setupBox2D(gravityLength: -10)
         scene.createWalls(width: 1000)
-        scene.createRevoluteChain(links: 10, linksShouldCollideWithEachOther: true, drawJoints: true)
+        scene.createHorizontalChain(links: 10, linksShouldCollideWithEachOther: true, drawJoints: true)
     }
     
 }

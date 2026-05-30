@@ -1,11 +1,16 @@
-//
-//  Boundaries.swift
-//  SpriteKit-Box2D
-//
-//  Created by Achraf Kassioui on 27/5/2026.
-//
+/**
+ 
+ # Boundaries
+ 
+ Factory functions for ground and walls.
+ 
+ Achraf Kassioui
+ Created 27 May 2026
+ Updated 30 May 2026
+ 
+ */
 import SpriteKit
-import SwiftBox2D
+import box2d
 
 // MARK: Ground
 
@@ -24,28 +29,28 @@ extension Scene {
         addChild(node)
         
         /// Box2D body
-        var bodyDef = b2BodyDef.default()
-        bodyDef.type = .b2StaticBody
-        bodyDef.position = B2Vec2(
+        var bodyDef = b2DefaultBodyDef()
+        bodyDef.type = b2_staticBody
+        bodyDef.position = b2Vec2(
             x: meters(fromPoints: position.x),
             y: meters(fromPoints: position.y)
         )
         
-        let body = b2DWorld.createBody(bodyDef)
+        let bodyId = b2CreateBody(b2WorldId, &bodyDef)
         
-        var shapeDef = b2ShapeDef.default()
+        var shapeDef = b2DefaultShapeDef()
         shapeDef.density = 0
         shapeDef.filter.categoryBits = PhysicsCategory.wall
         
         /// Box2D box dimensions are half extents in meters.
-        let polygon = B2Polygon.makeBox(
-            halfWidth: meters(fromPoints: size.width / 2),
-            halfHeight: meters(fromPoints: size.height / 2)
+        var polygon = b2MakeBox(
+            meters(fromPoints: size.width / 2),
+            meters(fromPoints: size.height / 2)
         )
         
-        body.createShape(polygon, shapeDef: shapeDef)
+        b2CreatePolygonShape(bodyId, &shapeDef, &polygon)
         
-        indexedEntities[body.id] = Entity(node: node, body: body)
+        indexedEntities[bodyId] = Entity(node: node, bodyID: bodyId)
     }
     
 }
@@ -97,28 +102,28 @@ extension Scene {
             addChild(node)
             
             /// Box2D body
-            var bodyDef = b2BodyDef.default()
-            bodyDef.type = .b2StaticBody
-            bodyDef.position = B2Vec2(
+            var bodyDef = b2DefaultBodyDef()
+            bodyDef.type = b2_staticBody
+            bodyDef.position = b2Vec2(
                 x: meters(fromPoints: position.x),
                 y: meters(fromPoints: position.y)
             )
             
-            let body = b2DWorld.createBody(bodyDef)
+            let bodyId = b2CreateBody(b2WorldId, &bodyDef)
             
-            var shapeDef = b2ShapeDef.default()
+            var shapeDef = b2DefaultShapeDef()
             shapeDef.density = 0
             shapeDef.filter.categoryBits = PhysicsCategory.wall
             
-            /// Static container parts are simple rectangle collision shapes
-            let polygon = B2Polygon.makeBox(
-                halfWidth: meters(fromPoints: size.width / 2),
-                halfHeight: meters(fromPoints: size.height / 2)
+            /// Static container parts are simple rectangle collision shapes.
+            var polygon = b2MakeBox(
+                meters(fromPoints: size.width / 2),
+                meters(fromPoints: size.height / 2)
             )
             
-            body.createShape(polygon, shapeDef: shapeDef)
+            b2CreatePolygonShape(bodyId, &shapeDef, &polygon)
             
-            indexedEntities[body.id] = Entity(node: node, body: body)
+            indexedEntities[bodyId] = Entity(node: node, bodyID: bodyId)
         }
     }
     

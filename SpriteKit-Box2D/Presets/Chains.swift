@@ -6,21 +6,22 @@
  
  Achraf Kassioui
  Created 26 May 2026
- Updated 28 May 2026
+ Updated 30 May 2026
  
  */
 import SpriteKit
-import SwiftBox2D
+import box2d
 
 extension Scene {
     
     // MARK: Vertical Chain
     
     func createVerticalChain(linkCount: Int, startY: CGFloat, drawJoints: Bool) {
-        /// Dimensions of links
+        /// Dimensions of links.
         let cellSize: CGFloat = 44
         let linkSize = CGSize(width: 20, height: 48)
-        /// The position of the bottom most link
+        
+        /// The position of the bottom most link.
         let startPosition = CGPoint(x: 0, y: startY)
         
         var chainEntities: [Entity] = []
@@ -38,7 +39,7 @@ extension Scene {
                 y: startPosition.y + CGFloat(index) * cellSize
             )
             
-            /// Visual node
+            /// Visual node.
             let node = SKSpriteNode(texture: texture)
             node.colorBlendFactor = 1
             node.color = .systemYellow
@@ -46,19 +47,20 @@ extension Scene {
             node.zPosition = ZPosition.content
             addChild(node)
             
-            /// Box2D body
-            var bodyDef = b2BodyDef.default()
-            bodyDef.type = .b2DynamicBody
-            bodyDef.position = B2Vec2(
+            /// Box2D body.
+            var bodyDef = b2DefaultBodyDef()
+            bodyDef.type = b2_dynamicBody
+            bodyDef.position = b2Vec2(
                 x: meters(fromPoints: position.x),
                 y: meters(fromPoints: position.y)
             )
             bodyDef.linearDamping = 1
             bodyDef.angularDamping = 1
             
-            let body = b2DWorld.createBody(bodyDef)
+            let bodyID = b2CreateBody(b2WorldId, &bodyDef)
             
-            var shapeDef = b2ShapeDef.default()
+            /// Box2D material.
+            var shapeDef = b2DefaultShapeDef()
             shapeDef.density = 1
             shapeDef.material.friction = 0.5
             shapeDef.material.restitution = 0.1
@@ -66,50 +68,50 @@ extension Scene {
             shapeDef.filter.maskBits = PhysicsCategory.wall | PhysicsCategory.chain | PhysicsCategory.block
             
             /// Box2D box dimensions are half extents in meters.
-            let polygon = B2Polygon.makeBox(
-                halfWidth: meters(fromPoints: linkSize.width / 2),
-                halfHeight: meters(fromPoints: linkSize.height / 2)
+            var polygon = b2MakeBox(
+                meters(fromPoints: linkSize.width / 2),
+                meters(fromPoints: linkSize.height / 2)
             )
             
-            body.createShape(polygon, shapeDef: shapeDef)
+            b2CreatePolygonShape(bodyID, &shapeDef, &polygon)
             
-            let entity = Entity(node: node, body: body)
+            let entity = Entity(node: node, bodyID: bodyID)
             chainEntities.append(entity)
-            indexedEntities[body.id] = entity
+            indexedEntities[bodyID] = entity
         }
         
         for index in 0..<(chainEntities.count - 1) {
-            let bodyA = chainEntities[index].body
-            let bodyB = chainEntities[index + 1].body
+            let bodyIDA = chainEntities[index].bodyID
+            let bodyIDB = chainEntities[index + 1].bodyID
             
-            let bodyAPosition = bodyA.getPosition()
-            let bodyBPosition = bodyB.getPosition()
+            let bodyPositionA = b2Body_GetPosition(bodyIDA)
+            let bodyPositionB = b2Body_GetPosition(bodyIDB)
             
             /// Joint pivot between two neighboring links.
-            let anchorPosition = B2Vec2(
-                x: (bodyAPosition.x + bodyBPosition.x) / 2,
-                y: (bodyAPosition.y + bodyBPosition.y) / 2
+            let anchorPosition = b2Vec2(
+                x: (bodyPositionA.x + bodyPositionB.x) / 2,
+                y: (bodyPositionA.y + bodyPositionB.y) / 2
             )
             
             /// Revolute joint connects two links at a pivot while allowing rotation.
-            var jointDef = b2RevoluteJointDef.default()
-            jointDef.bodyA = bodyA
-            jointDef.bodyB = bodyB
+            var jointDef = b2DefaultRevoluteJointDef()
+            jointDef.base.bodyIdA = bodyIDA
+            jointDef.base.bodyIdB = bodyIDB
             jointDef.base.collideConnected = false
             jointDef.enableLimit = true
             jointDef.lowerAngle = -.pi / 2
             jointDef.upperAngle = .pi / 2
             
             /// Box2D joint anchors are expressed in body-local coordinates.
-            jointDef.base.localFrameA.p = bodyA.getLocalPoint(anchorPosition)
-            jointDef.base.localFrameB.p = bodyB.getLocalPoint(anchorPosition)
+            jointDef.base.localFrameA.p = b2Body_GetLocalPoint(bodyIDA, anchorPosition)
+            jointDef.base.localFrameB.p = b2Body_GetLocalPoint(bodyIDB, anchorPosition)
             
-            let joint = b2DWorld.createJoint(jointDef)
+            let jointID = b2CreateRevoluteJoint(b2WorldId, &jointDef)
             
-            /// Joint visualization
+            /// Joint visualization.
             if drawJoints {
                 addJointVisualization(
-                    for: joint,
+                    for: jointID,
                     drawsAnchorLine: true,
                     drawsAnchorPoints: true,
                     drawsBodyToAnchorLines: false,
@@ -121,11 +123,11 @@ extension Scene {
     
 }
 
-// MARK: Revolute Chain
+// MARK: Horizontal Chain
 
 extension Scene {
     
-    func createRevoluteChain(
+    func createHorizontalChain(
         links: Int,
         linksShouldCollideWithEachOther: Bool,
         drawJoints: Bool
@@ -153,7 +155,7 @@ extension Scene {
                 y: startPosition.y
             )
             
-            /// SpriteKit visual
+            /// SpriteKit visual.
             let node = SKSpriteNode(texture: texture, size: blockSize)
             node.colorBlendFactor = 1
             node.color = .systemYellow
@@ -162,22 +164,22 @@ extension Scene {
             node.zPosition = ZPosition.content
             contentParent.addChild(node)
             
-            /// Box2D body
-            var bodyDef = b2BodyDef.default()
-            bodyDef.type = .b2DynamicBody
-            bodyDef.position = B2Vec2(
+            /// Box2D body.
+            var bodyDef = b2DefaultBodyDef()
+            bodyDef.type = b2_dynamicBody
+            bodyDef.position = b2Vec2(
                 x: meters(fromPoints: position.x),
                 y: meters(fromPoints: position.y)
             )
-            bodyDef.rotation = B2Rot(fromRadians: Float(rotation))
+            bodyDef.rotation = b2MakeRot(Float(rotation))
             bodyDef.linearDamping = 1
             bodyDef.angularDamping = 1
             bodyDef.gravityScale = 2
             
-            let body = b2DWorld.createBody(bodyDef)
+            let bodyID = b2CreateBody(b2WorldId, &bodyDef)
             
-            /// Box2D material
-            var shapeDef = b2ShapeDef.default()
+            /// Box2D material.
+            var shapeDef = b2DefaultShapeDef()
             shapeDef.density = 1
             shapeDef.material.friction = 0.5
             shapeDef.material.restitution = 0.2
@@ -186,51 +188,51 @@ extension Scene {
             ? PhysicsCategory.wall | PhysicsCategory.chain
             : PhysicsCategory.wall
             
-            /// Rectangle collision shape
-            let polygon = B2Polygon.makeBox(
-                halfWidth: meters(fromPoints: blockSize.width / 2),
-                halfHeight: meters(fromPoints: blockSize.height / 2)
+            /// Rectangle collision shape.
+            var polygon = b2MakeBox(
+                meters(fromPoints: blockSize.width / 2),
+                meters(fromPoints: blockSize.height / 2)
             )
             
-            body.createShape(polygon, shapeDef: shapeDef)
+            b2CreatePolygonShape(bodyID, &shapeDef, &polygon)
             
-            let entity = Entity(node: node, body: body)
+            let entity = Entity(node: node, bodyID: bodyID)
             chainEntities.append(entity)
-            indexedEntities[body.id] = entity
+            indexedEntities[bodyID] = entity
         }
         
         for index in 0..<(chainEntities.count - 1) {
-            let bodyA = chainEntities[index].body
-            let bodyB = chainEntities[index + 1].body
+            let bodyIDA = chainEntities[index].bodyID
+            let bodyIDB = chainEntities[index + 1].bodyID
             
-            let bodyAPosition = bodyA.getPosition()
-            let bodyBPosition = bodyB.getPosition()
+            let bodyPositionA = b2Body_GetPosition(bodyIDA)
+            let bodyPositionB = b2Body_GetPosition(bodyIDB)
             
             /// Midpoint between neighboring links.
-            let anchorPosition = B2Vec2(
-                x: (bodyAPosition.x + bodyBPosition.x) / 2,
-                y: (bodyAPosition.y + bodyBPosition.y) / 2
+            let anchorPosition = b2Vec2(
+                x: (bodyPositionA.x + bodyPositionB.x) / 2,
+                y: (bodyPositionA.y + bodyPositionB.y) / 2
             )
             
             /// Revolute joint connects two links at a pivot while allowing rotation.
-            var jointDef = b2RevoluteJointDef.default()
-            jointDef.bodyA = bodyA
-            jointDef.bodyB = bodyB
+            var jointDef = b2DefaultRevoluteJointDef()
+            jointDef.base.bodyIdA = bodyIDA
+            jointDef.base.bodyIdB = bodyIDB
             jointDef.base.collideConnected = false
             jointDef.enableLimit = true
             jointDef.lowerAngle = -.pi / 2
             jointDef.upperAngle = .pi / 2
             
             /// Box2D joint anchors are expressed in body-local coordinates.
-            jointDef.base.localFrameA.p = bodyA.getLocalPoint(anchorPosition)
-            jointDef.base.localFrameB.p = bodyB.getLocalPoint(anchorPosition)
+            jointDef.base.localFrameA.p = b2Body_GetLocalPoint(bodyIDA, anchorPosition)
+            jointDef.base.localFrameB.p = b2Body_GetLocalPoint(bodyIDB, anchorPosition)
             
-            let joint = b2DWorld.createJoint(jointDef)
+            let jointID = b2CreateRevoluteJoint(b2WorldId, &jointDef)
             
-            /// Joint visualization
+            /// Joint visualization.
             if drawJoints {
                 addJointVisualization(
-                    for: joint,
+                    for: jointID,
                     drawsAnchorLine: true,
                     drawsAnchorPoints: true,
                     drawsBodyToAnchorLines: false,

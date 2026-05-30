@@ -35,13 +35,13 @@ enum ZPosition {
 
 struct DragState {
     let pointerEntity: Entity
-    let joint: b2MotorJoint
+    let jointID: b2JointId
     var targetPosition: b2Vec2
     let targetRotation: b2Rot
 }
 
 struct VisualizedJoint {
-    let joint: B2Joint
+    let jointID: b2JointId
     let node: SKShapeNode
     
     /// Draw the line between anchor A and anchor B.
@@ -121,8 +121,14 @@ class Scene: SKScene, NavigationCameraDelegate, UIGestureRecognizerDelegate {
     // MARK: Box2D World
     
     func setupBox2D(gravityLength: Float) {
+        /// Destroy existing world if one is already running
+        if b2World_IsValid(b2WorldId) {
+            b2DestroyWorld(b2WorldId)
+            b2WorldId = b2_nullWorldId
+        }
+        
         var worldDef = b2DefaultWorldDef()
-        worldDef.gravity = b2Vec2(x: 0, y: -gravityLength)
+        worldDef.gravity = b2Vec2(x: 0, y: gravityLength)
         worldDef.restitutionThreshold = 0
         b2WorldId = b2CreateWorld(&worldDef)
     }
@@ -191,7 +197,7 @@ class Scene: SKScene, NavigationCameraDelegate, UIGestureRecognizerDelegate {
     // MARK: Joint Visualization
     
     func addJointVisualization(
-        for joint: B2Joint,
+        for jointID: b2JointId,
         drawsAnchorLine: Bool,
         drawsAnchorPoints: Bool,
         drawsBodyToAnchorLines: Bool,
@@ -207,7 +213,7 @@ class Scene: SKScene, NavigationCameraDelegate, UIGestureRecognizerDelegate {
         contentParent.addChild(node)
         
         visualizedJoints.append(VisualizedJoint(
-            joint: joint,
+            jointID: jointID,
             node: node,
             drawsAnchorLine: drawsAnchorLine,
             drawsAnchorPoints: drawsAnchorPoints,
@@ -218,25 +224,23 @@ class Scene: SKScene, NavigationCameraDelegate, UIGestureRecognizerDelegate {
     
     func visualizeJoints() {
         for visualizedJoint in visualizedJoints {
-            guard visualizedJoint.joint.isValid() else { continue }
+            guard b2Joint_IsValid(visualizedJoint.jointID) else { continue }
             
-            let bodyA = B2Body(id: visualizedJoint.joint.getBodyA())
-            let bodyB = B2Body(id: visualizedJoint.joint.getBodyB())
+            let bodyIdA = b2Joint_GetBodyA(visualizedJoint.jointID)
+            let bodyIdB = b2Joint_GetBodyB(visualizedJoint.jointID)
             
-            let bodyTransformA = bodyA.getTransform()
-            let bodyTransformB = bodyB.getTransform()
+            let bodyTransformA = b2Body_GetTransform(bodyIdA)
+            let bodyTransformB = b2Body_GetTransform(bodyIdB)
+            
+            let localFrameA = b2Joint_GetLocalFrameA(visualizedJoint.jointID)
+            let localFrameB = b2Joint_GetLocalFrameB(visualizedJoint.jointID)
             
             /// Joint anchors are body-local, so convert them to world coordinates.
-            let anchorA = bodyTransformA.transform(
-                visualizedJoint.joint.localFrameA.p
-            )
+            let anchorA = b2TransformPoint(bodyTransformA, localFrameA.p)
+            let anchorB = b2TransformPoint(bodyTransformB, localFrameB.p)
             
-            let anchorB = bodyTransformB.transform(
-                visualizedJoint.joint.localFrameB.p
-            )
-            
-            let bodyCenterA = bodyA.getPosition()
-            let bodyCenterB = bodyB.getPosition()
+            let bodyCenterA = b2Body_GetPosition(bodyIdA)
+            let bodyCenterB = b2Body_GetPosition(bodyIdB)
             
             let bodyCenterPointA = CGPoint(
                 x: points(fromMeters: bodyCenterA.x),
@@ -298,14 +302,14 @@ class Scene: SKScene, NavigationCameraDelegate, UIGestureRecognizerDelegate {
                 addJointFramePath(
                     to: path,
                     bodyTransform: bodyTransformA,
-                    localFrame: visualizedJoint.joint.localFrameA,
+                    localFrame: localFrameA,
                     axisLength: 14
                 )
                 
                 addJointFramePath(
                     to: path,
                     bodyTransform: bodyTransformB,
-                    localFrame: visualizedJoint.joint.localFrameB,
+                    localFrame: localFrameB,
                     axisLength: 10
                 )
             }
@@ -320,14 +324,16 @@ class Scene: SKScene, NavigationCameraDelegate, UIGestureRecognizerDelegate {
         localFrame: b2Transform,
         axisLength: CGFloat
     ) {
-        let worldFrame = bodyTransform * localFrame
+        /// b2MulTransforms multiplies two transforms: body world transform × local joint frame.
+        /// This gives the joint frame expressed in world space.
+        let worldFrame = b2MulTransforms(bodyTransform, localFrame)
         
         let origin = CGPoint(
             x: points(fromMeters: worldFrame.p.x),
             y: points(fromMeters: worldFrame.p.y)
         )
         
-        let angle = CGFloat(worldFrame.q.angle)
+        let angle = CGFloat(b2Rot_GetAngle(worldFrame.q))
         
         let xAxisEnd = CGPoint(
             x: origin.x + cos(angle) * axisLength,
@@ -390,9 +396,10 @@ class Scene: SKScene, NavigationCameraDelegate, UIGestureRecognizerDelegate {
     // MARK: Fixed Update
     
     private func fixedUpdate(_ fixedTimestep: TimeInterval) {
-        /// Move pointer
+        /// Move pointer bodies toward their target transforms.
+        /// b2Body_SetTargetTransform moves by setting velocity, not teleporting.
         for drag in activeDrags.values {
-            b2Body_SetTargetTransform( /// move by setting velocity, not teleport
+            b2Body_SetTargetTransform(
                 drag.pointerEntity.bodyID,
                 b2Transform(p: drag.targetPosition, q: drag.targetRotation), /// p is position, q is rotation
                 Float(fixedTimestep),
@@ -401,15 +408,15 @@ class Scene: SKScene, NavigationCameraDelegate, UIGestureRecognizerDelegate {
         }
         
         /// Run the Box2D simulation
-        //b2DWorld.step(Float(fixedTimestep), subSteps: 4)
         b2World_Step(b2WorldId, Float(fixedTimestep), 4)
     }
     
     // MARK: Sync Rendering
     
     private func syncRendering() {
-        /// Get bodies that moved
-        //let bodyEvents = b2DWorld.getBodyEvents()
+        /// Get bodies that moved this step.
+        /// b2World_GetBodyEvents returns a struct with a C array pointer and a count.
+        /// The data is transient: do not store a reference to it.
         let bodyEvents = b2World_GetBodyEvents(b2WorldId)
         
         /// If no body moved, return
@@ -437,7 +444,7 @@ class Scene: SKScene, NavigationCameraDelegate, UIGestureRecognizerDelegate {
                 y: points(fromMeters: moveEvent.transform.p.y)
             )
             
-            node.zRotation = CGFloat(moveEvent.transform.q.angle)
+            node.zRotation = CGFloat(b2Rot_GetAngle(moveEvent.transform.q))
         }
     }
     
@@ -452,13 +459,14 @@ class Scene: SKScene, NavigationCameraDelegate, UIGestureRecognizerDelegate {
             
             mixHash(&hash, bodyPosition.x.bitPattern)
             mixHash(&hash, bodyPosition.y.bitPattern)
-            mixHash(&hash, bodyRotation.angle.bitPattern)
+            mixHash(&hash, b2Rot_GetAngle(bodyRotation).bitPattern)
         }
         
         return String(hash, radix: 16)
     }
     
     private func mixHash(_ hash: inout UInt64, _ value: UInt32) {
+        /// FNV-1a style: XOR then multiply by prime. Stable across launches.
         hash ^= UInt64(value)
         hash &*= 1_099_511_628_211
     }
@@ -498,7 +506,7 @@ class Scene: SKScene, NavigationCameraDelegate, UIGestureRecognizerDelegate {
             )
             
             /// Define a motor joint
-            var jointDef = b2MotorJointDef.default()
+            var jointDef = b2DefaultMotorJointDef()
             jointDef.base.bodyIdA = pointerBodyNode.bodyID
             jointDef.base.bodyIdB = hitEntity.bodyID
             
@@ -514,7 +522,7 @@ class Scene: SKScene, NavigationCameraDelegate, UIGestureRecognizerDelegate {
             jointDef.linearDampingRatio = 1
             
             let massData = b2Body_GetMassData(hitEntity.bodyID)
-            let gravityStrength = max(b2DWorld.gravity.length, gravityLength)
+            let gravityStrength = max(b2Length(b2World_GetGravity(b2WorldId)), gravityLength)
             let bodyWeight = max(massData.mass * gravityStrength, 1.0)
             
             jointDef.maxSpringForce = 80 * bodyWeight
@@ -534,19 +542,19 @@ class Scene: SKScene, NavigationCameraDelegate, UIGestureRecognizerDelegate {
                 }
             }
             
-            let joint = b2DWorld.createJoint(jointDef)
+            let jointID = b2CreateMotorJoint(b2WorldId, &jointDef)
             
             /// Store drag state
             activeDrags[touch] = DragState(
                 pointerEntity: pointerBodyNode,
-                joint: joint,
+                jointID: jointID,
                 targetPosition: worldPosition,
                 targetRotation: targetRotation
             )
             
             /// Visualize joint
             addJointVisualization(
-                for: joint,
+                for: jointID,
                 drawsAnchorLine: true,
                 drawsAnchorPoints: true,
                 drawsBodyToAnchorLines: true,
@@ -564,7 +572,7 @@ class Scene: SKScene, NavigationCameraDelegate, UIGestureRecognizerDelegate {
             guard var drag = activeDrags[touch] else { continue }
             
             /// Store intended target
-            drag.targetPosition = B2Vec2(
+            drag.targetPosition = b2Vec2(
                 x: meters(fromPoints: scenePosition.x),
                 y: meters(fromPoints: scenePosition.y)
             )
@@ -585,7 +593,7 @@ class Scene: SKScene, NavigationCameraDelegate, UIGestureRecognizerDelegate {
     
     // MARK: Dragging
     
-    private func createPointerEntity(touchRadius: CGFloat, position: B2Vec2, rotation: B2Rot) -> Entity {
+    private func createPointerEntity(touchRadius: CGFloat, position: b2Vec2, rotation: b2Rot) -> Entity {
         /// Visual pointer
         let pointerNode = SKShapeNode(circleOfRadius: touchRadius)
         pointerNode.fillColor = SKColor.systemCyan.withAlphaComponent(0.5)
@@ -595,26 +603,26 @@ class Scene: SKScene, NavigationCameraDelegate, UIGestureRecognizerDelegate {
             x: points(fromMeters: position.x),
             y: points(fromMeters: position.y)
         )
-        pointerNode.zRotation = CGFloat(rotation.angle)
+        pointerNode.zRotation = CGFloat(b2Rot_GetAngle(rotation))
         pointerNode.zPosition = ZPosition.UI
         addChild(pointerNode)
         
         /// Pointer body: kinematic target used by the motor joint
-        var bodyDef = b2BodyDef.default()
-        bodyDef.type = .b2KinematicBody
+        var bodyDef = b2DefaultBodyDef()
+        bodyDef.type = b2_kinematicBody
         bodyDef.position = position
         bodyDef.rotation = rotation
         bodyDef.enableSleep = false
         
         /// No shape is needed, the joint only needs a body
-        let pointerBody = b2DWorld.createBody(bodyDef)
+        let pointerBodyId = b2CreateBody(b2WorldId, &bodyDef)
         
         let entity = Entity(
             node: pointerNode,
-            bodyID: pointerBody.id
+            bodyID: pointerBodyId
         )
         
-        indexedEntities[pointerBody.id] = entity
+        indexedEntities[pointerBodyId] = entity
         
         return entity
     }
@@ -625,21 +633,23 @@ class Scene: SKScene, NavigationCameraDelegate, UIGestureRecognizerDelegate {
             
             let pointerBodyId = drag.pointerEntity.bodyID
             
-            /// Remove storage first, before destroying the body mutates its id.
+            /// Remove storage first, so no scene code can find this body after destruction.
             indexedEntities[pointerBodyId] = nil
             activeDrags.removeValue(forKey: touch)
             
-            /// Remove the joint visualization
-            for visualizedJoint in visualizedJoints where visualizedJoint.joint === drag.joint {
+            /// Remove the joint visualization.
+            /// b2JointId is a value type (C struct), so we use == not ===.
+            for visualizedJoint in visualizedJoints where visualizedJoint.jointID == drag.jointID {
                 visualizedJoint.node.removeFromParent()
             }
             
             visualizedJoints.removeAll { visualizedJoint in
-                visualizedJoint.joint === drag.joint
+                visualizedJoint.jointID == drag.jointID
             }
             
-            /// Destroy objects after they are no longer reachable from scene storage.
-            drag.joint.destroy(wakeAttached: wakeAttached)
+            // TODO: C API does have a wakeAttached parameter
+            /// Destroy joint then body. Order matters: joint references the body.
+            b2DestroyJoint(drag.jointID, wakeAttached)
             removeEntity(drag.pointerEntity)
         }
     }
@@ -654,30 +664,32 @@ class Scene: SKScene, NavigationCameraDelegate, UIGestureRecognizerDelegate {
             y: meters(fromPoints: scenePosition.y)
         )
         
+        // TODO: single point? misleading
+        /// The touch probe is a single point at the origin.
+        /// b2MakeOffsetProxy places it at worldPosition with the given radius.
         var probeCenter = b2Vec2(x: 0, y: 0)
-        
-        /// The touch probe is a small circle placed at the touch position
-        let probe = withUnsafePointer(to: &probeCenter) { probeCenterPointer in
+        var probe = withUnsafePointer(to: &probeCenter) { probeCenterPointer in
             b2MakeOffsetProxy(
                 probeCenterPointer,
                 1,
                 touchRadiusMeters,
                 worldPosition,
-                .identity
+                b2Rot_identity /// Zero rotation: the probe has no orientation
             )
         }
         
         var hitEntities: [Entity] = []
         
-        /// Ask Box2D which collision shapes overlap the touch footprint
-        b2DWorld.overlapShape(probe, filter: .default()) { shape in
-            let bodyId = shape.getBody()
+        /// Ask Box2D which collision shapes overlap the touch footprint.
+        /// b2WorldOverlapShape is a local helper that bridges the C callback to a Swift closure.
+        b2WorldOverlapShape(b2WorldId, &probe, b2DefaultQueryFilter()) { shapeId in
+            let bodyId = b2Shape_GetBody(shapeId)
             
-            guard let entity = indexedEntities[bodyId] else {
+            guard let entity = self.indexedEntities[bodyId] else {
                 return true
             }
             
-            guard b2Body_GetType(entity.bodyID) == .b2DynamicBody else {
+            guard b2Body_GetType(entity.bodyID) == b2_dynamicBody else {
                 return true
             }
             

@@ -2,16 +2,16 @@
  
  # Minimal Setup
  
- Minimal scene to run Box2D with SpriteKit.
+ Minimal scene to run Box2D 3.x.x in C along SpriteKit in Swift.
  
  Achraf Kassioui
  Created 19 May 2026
- Updated 28 May 2026
+ Updated 30 May 2026
  
  */
-import SpriteKit
-import SwiftBox2D
 import SwiftUI
+import SpriteKit
+import box2d
 
 // MARK: View
 
@@ -38,16 +38,17 @@ struct MinimalSetupView: View {
 
 class MinimalScene: SKScene {
     
-    /// Create a Box2D physics world.
-    let b2DWorld = B2World()
+    /// Initialize a Box2D world ID.
+    /// In the Box2D C API, all objects are handled with an ID.
+    var b2WorldID: b2WorldId = b2_nullWorldId
     
-    /// Create a data structure that links SpriteKit nodes with Box2D bodies.
+    /// Create a data structure that links a SpriteKit node with a Box2D body id.
     struct Entity {
         weak var node: SKNode?
-        let body: B2Body
+        let bodyID: b2BodyId
     }
-    /// A dictionary that indexes entities with body id, for faster retrieval.
-    var indexedEntities: [B2BodyId: Entity] = [:]
+    /// A dictionary that indexes entities by Box2D body id, for faster retrieval.
+    var indexedEntities: [b2BodyId: Entity] = [:]
     
     /// How many SpriteKit screen points is one meter in the simulation.
     /// Arbitrary value. In SpriteKit's own physics engine, 1 meter = 150 points.
@@ -70,51 +71,64 @@ class MinimalScene: SKScene {
         sprite.position = CGPoint(x: 0, y: 0)
         addChild(sprite)
         
-        /// Disable Box2D gravity.
-        b2DWorld.gravity = .zero
+        /// Create a Box2D world.
+        var worldDef = b2DefaultWorldDef()
+        worldDef.gravity = b2Vec2(x: 0, y: 0)
+        b2WorldID = b2CreateWorld(&worldDef)
         
         /// Create a Box2D body at the same position.
-        var bodyDef = b2BodyDef.default()
-        bodyDef.type = .b2DynamicBody
+        var bodyDef = b2DefaultBodyDef()
+        bodyDef.type = b2_dynamicBody
         bodyDef.angularDamping = 0
         
         /// Convert position to meters.
-        bodyDef.position = B2Vec2(
+        bodyDef.position = b2Vec2(
             x: meters(fromPoints: sprite.position.x),
             y: meters(fromPoints: sprite.position.y)
         )
         
-        let body = b2DWorld.createBody(bodyDef)
+        let bodyID = b2CreateBody(b2WorldID, &bodyDef)
         
         /// Add a collision shape to the body.
-        var shapeDef = b2ShapeDef.default()
+        var shapeDef = b2DefaultShapeDef()
         shapeDef.density = 1
         shapeDef.material.restitution = 0.2
         
-        let box = B2Polygon.makeBox(
-            halfWidth: meters(fromPoints: spriteSize.width / 2),
-            halfHeight: meters(fromPoints: spriteSize.height / 2)
+        var box = b2MakeBox(
+            meters(fromPoints: spriteSize.width / 2),
+            meters(fromPoints: spriteSize.height / 2)
         )
         
-        body.createShape(box, shapeDef: shapeDef)
+        /// The & here is Swift syntax than means unsafePointer, i.e. we directly point to a location in memory.
+        /// It's up to the programmer to manage the pointer's bounds and lifetime.
+        b2CreatePolygonShape(bodyID, &shapeDef, &box)
         
         /// Give the body an initial spin.
-        body.applyAngularImpulse(0.01, true)
+        b2Body_ApplyAngularImpulse(bodyID, 0.01, true)
         
         /// Store the link between SpriteKit and Box2D.
-        indexedEntities[body.id] = Entity(node: sprite, body: body)
+        indexedEntities[bodyID] = Entity(node: sprite, bodyID: bodyID)
+    }
+    
+    override func willMove(from view: SKView) {
+        /// Destroy the Box2D world when the view no longer presents the scene.
+        /// Destroying the world also destroys all bodies, shapes, joints, and contacts inside it.
+        if b2World_IsValid(b2WorldID) {
+            b2DestroyWorld(b2WorldID)
+        }
+        self.removeAllChildren()
     }
     
     override func update(_ currentTime: TimeInterval) {
         /// Run Box2D with a fixed timestep.
         /// This minimal setup assumes SpriteKit is rendering at 60 fps.
-        b2DWorld.step(1.0 / 60.0, subSteps: 4)
+        b2World_Step(b2WorldID, 1/60, 4)
     }
     
     /// Before SKView renders, sync Box2D outcome with SpriteKit rendering.
     override func didFinishUpdate() {
         /// Box2D emits events for bodies that have moved.
-        let bodyEvents = b2DWorld.getBodyEvents()
+        let bodyEvents = b2World_GetBodyEvents(b2WorldID)
         
         /// If no body moved, do nothing.
         guard let moveEvents = bodyEvents.moveEvents else { return }
@@ -142,7 +156,7 @@ class MinimalScene: SKScene {
                 y: points(fromMeters: moveEvent.transform.p.y)
             )
             
-            node.zRotation = CGFloat(moveEvent.transform.q.angle)
+            node.zRotation = CGFloat(b2Rot_GetAngle(moveEvent.transform.q))
         }
     }
     
