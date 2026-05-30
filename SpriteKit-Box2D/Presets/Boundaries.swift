@@ -11,8 +11,8 @@ import SwiftBox2D
 
 extension Scene {
     
-    func createGround() {
-        let size = CGSize(width: 2000, height: 15)
+    func createGround(width: CGFloat) {
+        let size = CGSize(width: width, height: 15)
         let position = CGPoint(x: 0, y: -300)
         
         /// Visual node
@@ -45,7 +45,7 @@ extension Scene {
         
         body.createShape(polygon, shapeDef: shapeDef)
         
-        entities[body.id] = Entity(node: node, body: body)
+        indexedEntities[body.id] = Entity(node: node, body: body)
     }
     
 }
@@ -54,9 +54,9 @@ extension Scene {
 
 extension Scene {
     
-    func createWalls() {
+    func createWalls(width: CGFloat) {
         let thickness: CGFloat = 15
-        let baseWidth: CGFloat = 2000
+        let baseWidth: CGFloat = width
         let sideHeight: CGFloat = 20000
         
         /// Ground center Y, relative to scene origin.
@@ -118,7 +118,7 @@ extension Scene {
             
             body.createShape(polygon, shapeDef: shapeDef)
             
-            entities[body.id] = Entity(node: node, body: body)
+            indexedEntities[body.id] = Entity(node: node, body: body)
         }
     }
     

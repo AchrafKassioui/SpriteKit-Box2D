@@ -39,6 +39,23 @@ struct DragState {
     let targetRotation: B2Rot
 }
 
+struct VisualizedJoint {
+    let joint: B2Joint
+    let node: SKShapeNode
+    
+    /// Draw the line between anchor A and anchor B.
+    let drawsAnchorLine: Bool
+    
+    /// Draw circles at anchor A and anchor B.
+    let drawsAnchorPoints: Bool
+    
+    /// Draw line from each body center to its own anchor.
+    let drawsBodyToAnchorLines: Bool
+    
+    /// Draw local joint frames.
+    let drawsFrames: Bool
+}
+
 // MARK: Scene
 
 @Observable
@@ -62,17 +79,11 @@ class Scene: SKScene, NavigationCameraDelegate, UIGestureRecognizerDelegate {
     private let gravityLength: Float = 10
     var b2DWorld = B2World()
     
-    /// Entities
+    /// Content
     let contentParent = SKNode()
-    var entities: [B2BodyId: Entity] = [:]
+    var indexedEntities: [B2BodyId: Entity] = [:]
     
-    /// Joints visualization    
-    struct VisualizedJoint {
-        let joint: B2Joint
-        let node: SKShapeNode
-        let drawsBodyBAnchor: Bool
-    }
-    
+    /// Joints visualization
     var visualizedJoints: [VisualizedJoint] = []
     
     /// Dragging
@@ -162,11 +173,11 @@ class Scene: SKScene, NavigationCameraDelegate, UIGestureRecognizerDelegate {
         visualizedJoints.removeAll()
         
         /// Remove all SpriteKit nodes and Box2D bodies owned by the scene content.
-        for entity in entities.values {
+        for entity in indexedEntities.values {
             removeEntity(entity)
         }
         
-        entities.removeAll()
+        indexedEntities.removeAll()
     }
     
     private func removeEntity(_ entity: Entity) {
@@ -178,9 +189,12 @@ class Scene: SKScene, NavigationCameraDelegate, UIGestureRecognizerDelegate {
     
     func addJointVisualization(
         for joint: B2Joint,
-        drawsBodyBAnchor: Bool
+        drawsAnchorLine: Bool,
+        drawsAnchorPoints: Bool,
+        drawsBodyToAnchorLines: Bool,
+        drawsFrames: Bool
     ) {
-        /// SpriteKit node used to draw the joint between its two body-local anchors.
+        /// SpriteKit node used to draw truthful joint geometry.
         let node = SKShapeNode()
         node.strokeColor = .black
         node.fillColor = .black
@@ -192,7 +206,10 @@ class Scene: SKScene, NavigationCameraDelegate, UIGestureRecognizerDelegate {
         visualizedJoints.append(VisualizedJoint(
             joint: joint,
             node: node,
-            drawsBodyBAnchor: drawsBodyBAnchor
+            drawsAnchorLine: drawsAnchorLine,
+            drawsAnchorPoints: drawsAnchorPoints,
+            drawsBodyToAnchorLines: drawsBodyToAnchorLines,
+            drawsFrames: drawsFrames
         ))
     }
     
@@ -203,54 +220,111 @@ class Scene: SKScene, NavigationCameraDelegate, UIGestureRecognizerDelegate {
             let bodyA = B2Body(id: visualizedJoint.joint.getBodyA())
             let bodyB = B2Body(id: visualizedJoint.joint.getBodyB())
             
-            let worldFrameA = bodyA.getTransform() * visualizedJoint.joint.localFrameA
-            let worldFrameB = bodyB.getTransform() * visualizedJoint.joint.localFrameB
+            let bodyTransformA = bodyA.getTransform()
+            let bodyTransformB = bodyB.getTransform()
             
-            let pointA = CGPoint(
-                x: points(fromMeters: worldFrameA.p.x),
-                y: points(fromMeters: worldFrameA.p.y)
+            /// Joint anchors are body-local, so convert them to world coordinates.
+            let anchorA = bodyTransformA.transform(
+                visualizedJoint.joint.localFrameA.p
             )
             
-            let pointB = CGPoint(
-                x: points(fromMeters: worldFrameB.p.x),
-                y: points(fromMeters: worldFrameB.p.y)
+            let anchorB = bodyTransformB.transform(
+                visualizedJoint.joint.localFrameB.p
+            )
+            
+            let bodyCenterA = bodyA.getPosition()
+            let bodyCenterB = bodyB.getPosition()
+            
+            let bodyCenterPointA = CGPoint(
+                x: points(fromMeters: bodyCenterA.x),
+                y: points(fromMeters: bodyCenterA.y)
+            )
+            
+            let bodyCenterPointB = CGPoint(
+                x: points(fromMeters: bodyCenterB.x),
+                y: points(fromMeters: bodyCenterB.y)
+            )
+            
+            let anchorPointA = CGPoint(
+                x: points(fromMeters: anchorA.x),
+                y: points(fromMeters: anchorA.y)
+            )
+            
+            let anchorPointB = CGPoint(
+                x: points(fromMeters: anchorB.x),
+                y: points(fromMeters: anchorB.y)
             )
             
             let path = CGMutablePath()
             
-            /// Truth: line between both joint anchors. For weld joints this may be a tiny dot.
-            path.move(to: pointA)
-            path.addLine(to: pointB)
+            if visualizedJoint.drawsAnchorLine {
+                /// Draw the constraint error line. For weld joints this may be almost a dot.
+                path.move(to: anchorPointA)
+                path.addLine(to: anchorPointB)
+            }
             
-            /// Truth: draw body A joint frame.
-            addFramePath(
-                to: path,
-                transform: worldFrameA,
-                axisLength: 14
-            )
+            if visualizedJoint.drawsAnchorPoints {
+                /// Draw the two joint anchor points.
+                path.addEllipse(in: CGRect(
+                    x: anchorPointA.x - 3,
+                    y: anchorPointA.y - 3,
+                    width: 6,
+                    height: 6
+                ))
+                
+                path.addEllipse(in: CGRect(
+                    x: anchorPointB.x - 3,
+                    y: anchorPointB.y - 3,
+                    width: 6,
+                    height: 6
+                ))
+            }
             
-            /// Truth: draw body B joint frame.
-            addFramePath(
-                to: path,
-                transform: worldFrameB,
-                axisLength: 10
-            )
+            if visualizedJoint.drawsBodyToAnchorLines {
+                /// Draw body A center to its local anchor.
+                path.move(to: bodyCenterPointA)
+                path.addLine(to: anchorPointA)
+                
+                /// Draw body B center to its local anchor.
+                path.move(to: bodyCenterPointB)
+                path.addLine(to: anchorPointB)
+            }
+            
+            if visualizedJoint.drawsFrames {
+                /// Draw local joint frames to inspect anchor orientation.
+                addJointFramePath(
+                    to: path,
+                    bodyTransform: bodyTransformA,
+                    localFrame: visualizedJoint.joint.localFrameA,
+                    axisLength: 14
+                )
+                
+                addJointFramePath(
+                    to: path,
+                    bodyTransform: bodyTransformB,
+                    localFrame: visualizedJoint.joint.localFrameB,
+                    axisLength: 10
+                )
+            }
             
             visualizedJoint.node.path = path
         }
     }
     
-    private func addFramePath(
+    private func addJointFramePath(
         to path: CGMutablePath,
-        transform: B2Transform,
+        bodyTransform: B2Transform,
+        localFrame: B2Transform,
         axisLength: CGFloat
     ) {
+        let worldFrame = bodyTransform * localFrame
+        
         let origin = CGPoint(
-            x: points(fromMeters: transform.p.x),
-            y: points(fromMeters: transform.p.y)
+            x: points(fromMeters: worldFrame.p.x),
+            y: points(fromMeters: worldFrame.p.y)
         )
         
-        let angle = CGFloat(transform.q.angle)
+        let angle = CGFloat(worldFrame.q.angle)
         
         let xAxisEnd = CGPoint(
             x: origin.x + cos(angle) * axisLength,
@@ -267,13 +341,6 @@ class Scene: SKScene, NavigationCameraDelegate, UIGestureRecognizerDelegate {
         
         path.move(to: origin)
         path.addLine(to: yAxisEnd)
-        
-        path.addEllipse(in: CGRect(
-            x: origin.x - 2,
-            y: origin.y - 2,
-            width: 4,
-            height: 4
-        ))
     }
     
     // MARK: Update
@@ -313,7 +380,8 @@ class Scene: SKScene, NavigationCameraDelegate, UIGestureRecognizerDelegate {
     }
     
     override func didFinishUpdate() {
-        
+        syncRendering()
+        visualizeJoints()
     }
     
     // MARK: Fixed Update
@@ -330,9 +398,6 @@ class Scene: SKScene, NavigationCameraDelegate, UIGestureRecognizerDelegate {
         
         /// Run the Box2D simulation
         b2DWorld.step(Float(fixedTimestep), subSteps: 4)
-        
-        syncRendering()
-        visualizeJoints()
     }
     
     // MARK: Sync Rendering
@@ -358,7 +423,7 @@ class Scene: SKScene, NavigationCameraDelegate, UIGestureRecognizerDelegate {
         for index in 0..<Int(bodyEvents.moveCount) {
             let moveEvent = moveEvents[index]
             
-            guard let entity = entities[moveEvent.bodyId] else { continue }
+            guard let entity = indexedEntities[moveEvent.bodyId] else { continue }
             guard let node = entity.node else { continue }
             
             node.position = CGPoint(
@@ -367,11 +432,29 @@ class Scene: SKScene, NavigationCameraDelegate, UIGestureRecognizerDelegate {
             )
             
             node.zRotation = CGFloat(moveEvent.transform.q.angle)
-            
-            if moveEvent.fellAsleep {
-                /// This body is sleeping
-            }
         }
+    }
+    
+    // MARK: Hash
+    
+    private func stateHashString() -> String {
+        var hash: UInt64 = 14_695_981_039_346_656_037
+        
+        for entity in indexedEntities.values {
+            let bodyPosition = entity.body.getPosition()
+            let bodyRotation = entity.body.getRotation()
+            
+            mixHash(&hash, bodyPosition.x.bitPattern)
+            mixHash(&hash, bodyPosition.y.bitPattern)
+            mixHash(&hash, bodyRotation.angle.bitPattern)
+        }
+        
+        return String(hash, radix: 16)
+    }
+    
+    private func mixHash(_ hash: inout UInt64, _ value: UInt32) {
+        hash ^= UInt64(value)
+        hash &*= 1_099_511_628_211
     }
     
     // MARK: Touch Began
@@ -458,7 +541,10 @@ class Scene: SKScene, NavigationCameraDelegate, UIGestureRecognizerDelegate {
             /// Visualize joint
             addJointVisualization(
                 for: joint,
-                drawsBodyBAnchor: true
+                drawsAnchorLine: true,
+                drawsAnchorPoints: true,
+                drawsBodyToAnchorLines: true,
+                drawsFrames: false
             )
         }
     }
@@ -522,7 +608,7 @@ class Scene: SKScene, NavigationCameraDelegate, UIGestureRecognizerDelegate {
             body: pointerBody,
         )
         
-        entities[pointerBody.id] = entity
+        indexedEntities[pointerBody.id] = entity
         
         return entity
     }
@@ -534,7 +620,7 @@ class Scene: SKScene, NavigationCameraDelegate, UIGestureRecognizerDelegate {
             let pointerBodyId = drag.pointerEntity.body.id
             
             /// Remove storage first, before destroying the body mutates its id.
-            entities[pointerBodyId] = nil
+            indexedEntities[pointerBodyId] = nil
             activeDrags.removeValue(forKey: touch)
             
             /// Remove the joint visualization
@@ -581,7 +667,7 @@ class Scene: SKScene, NavigationCameraDelegate, UIGestureRecognizerDelegate {
         b2DWorld.overlapShape(probe, filter: .default()) { shape in
             let bodyId = shape.getBody()
             
-            guard let entity = entities[bodyId] else {
+            guard let entity = indexedEntities[bodyId] else {
                 return true
             }
             

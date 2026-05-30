@@ -1,9 +1,14 @@
-//
-//  Chains.swift
-//  SpriteKit-Box2D
-//
-//  Created by Achraf Kassioui on 26/5/2026.
-//
+/**
+ 
+ # Chains
+ 
+ Factory functions that create chain-like assemblies using SpriteKit and Box2D.
+ 
+ Achraf Kassioui
+ Created 26 May 2026
+ Updated 28 May 2026
+ 
+ */
 import SpriteKit
 import SwiftBox2D
 
@@ -12,8 +17,10 @@ extension Scene {
     // MARK: Vertical Chain
     
     func createVerticalChain(linkCount: Int, startY: CGFloat, drawJoints: Bool) {
+        /// Dimensions of links
         let cellSize: CGFloat = 44
         let linkSize = CGSize(width: 20, height: 48)
+        /// The position of the bottom most link
         let startPosition = CGPoint(x: 0, y: startY)
         
         var chainEntities: [Entity] = []
@@ -68,7 +75,7 @@ extension Scene {
             
             let entity = Entity(node: node, body: body)
             chainEntities.append(entity)
-            entities[body.id] = entity
+            indexedEntities[body.id] = entity
         }
         
         for index in 0..<(chainEntities.count - 1) {
@@ -101,7 +108,13 @@ extension Scene {
             
             /// Joint visualization
             if drawJoints {
-                addJointVisualization(for: joint, drawsBodyBAnchor: false)
+                addJointVisualization(
+                    for: joint,
+                    drawsAnchorLine: true,
+                    drawsAnchorPoints: true,
+                    drawsBodyToAnchorLines: false,
+                    drawsFrames: false
+                )
             }
         }
     }
@@ -112,35 +125,42 @@ extension Scene {
 
 extension Scene {
     
-    func createRevoluteChain(parent: SKNode, linksShouldCollideWithEachOther: Bool) {
-        let blockCount = 2000
+    func createRevoluteChain(
+        links: Int,
+        linksShouldCollideWithEachOther: Bool,
+        drawJoints: Bool
+    ) {
+        let blockCount = links
         let cellSize: CGFloat = 44
         let blockSize = CGSize(width: 20, height: 38)
-        /// Lowest block center Y, the chain grows upward
-        let startPosition = CGPoint(x: 0, y: -150)
-        let colors: [SKColor] = [.systemOrange, .systemYellow, .systemTeal, .systemRed, .white, .systemGray]
+        
+        /// Left-most link center. The chain grows toward the right.
+        let startPosition = CGPoint(x: -CGFloat(blockCount - 1) * cellSize / 2, y: -150)
+        let rotation: CGFloat = .pi / 2
         
         var chainEntities: [Entity] = []
         
+        let texture = ResourceCache.texture(
+            isRectangle: true,
+            width: blockSize.width,
+            height: blockSize.height,
+            cornerRadius: 6
+        )
+        
         for index in 0..<blockCount {
             let position = CGPoint(
-                x: startPosition.x,
-                y: startPosition.y + CGFloat(index) * cellSize
+                x: startPosition.x + CGFloat(index) * cellSize,
+                y: startPosition.y
             )
             
             /// SpriteKit visual
-            let texture = ResourceCache.texture(
-                isRectangle: true,
-                width: blockSize.width,
-                height: blockSize.height,
-                cornerRadius: 6
-            )
-            
             let node = SKSpriteNode(texture: texture, size: blockSize)
             node.colorBlendFactor = 1
-            node.color = colors.randomElement() ?? .systemYellow
+            node.color = .systemYellow
+            node.position = position
+            node.zRotation = rotation
             node.zPosition = ZPosition.content
-            parent.addChild(node)
+            contentParent.addChild(node)
             
             /// Box2D body
             var bodyDef = b2BodyDef.default()
@@ -149,6 +169,7 @@ extension Scene {
                 x: meters(fromPoints: position.x),
                 y: meters(fromPoints: position.y)
             )
+            bodyDef.rotation = B2Rot(fromRadians: Float(rotation))
             bodyDef.linearDamping = 1
             bodyDef.angularDamping = 1
             bodyDef.gravityScale = 2
@@ -161,7 +182,9 @@ extension Scene {
             shapeDef.material.friction = 0.5
             shapeDef.material.restitution = 0.2
             shapeDef.filter.categoryBits = PhysicsCategory.chain
-            shapeDef.filter.maskBits = linksShouldCollideWithEachOther ? PhysicsCategory.wall | PhysicsCategory.chain : PhysicsCategory.wall
+            shapeDef.filter.maskBits = linksShouldCollideWithEachOther
+            ? PhysicsCategory.wall | PhysicsCategory.chain
+            : PhysicsCategory.wall
             
             /// Rectangle collision shape
             let polygon = B2Polygon.makeBox(
@@ -173,7 +196,7 @@ extension Scene {
             
             let entity = Entity(node: node, body: body)
             chainEntities.append(entity)
-            entities[body.id] = Entity(node: node, body: body)
+            indexedEntities[body.id] = entity
         }
         
         for index in 0..<(chainEntities.count - 1) {
@@ -183,13 +206,13 @@ extension Scene {
             let bodyAPosition = bodyA.getPosition()
             let bodyBPosition = bodyB.getPosition()
             
-            /// Midpoint
+            /// Midpoint between neighboring links.
             let anchorPosition = B2Vec2(
                 x: (bodyAPosition.x + bodyBPosition.x) / 2,
                 y: (bodyAPosition.y + bodyBPosition.y) / 2
             )
             
-            /// Revolute joint connects two blocks at a pivot while allowing rotation
+            /// Revolute joint connects two links at a pivot while allowing rotation.
             var jointDef = b2RevoluteJointDef.default()
             jointDef.bodyA = bodyA
             jointDef.bodyB = bodyB
@@ -198,11 +221,22 @@ extension Scene {
             jointDef.lowerAngle = -.pi / 2
             jointDef.upperAngle = .pi / 2
             
-            /// Box2D joint anchors are expressed in body-local coordinates
+            /// Box2D joint anchors are expressed in body-local coordinates.
             jointDef.base.localFrameA.p = bodyA.getLocalPoint(anchorPosition)
             jointDef.base.localFrameB.p = bodyB.getLocalPoint(anchorPosition)
             
-            _ = b2DWorld.createJoint(jointDef)
+            let joint = b2DWorld.createJoint(jointDef)
+            
+            /// Joint visualization
+            if drawJoints {
+                addJointVisualization(
+                    for: joint,
+                    drawsAnchorLine: true,
+                    drawsAnchorPoints: true,
+                    drawsBodyToAnchorLines: false,
+                    drawsFrames: false
+                )
+            }
         }
     }
     

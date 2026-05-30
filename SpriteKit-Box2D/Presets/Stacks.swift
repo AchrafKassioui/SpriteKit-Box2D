@@ -7,41 +7,9 @@
 import SpriteKit
 import SwiftBox2D
 
-// MARK: Stacks
-
 extension Scene {
     
-    func createPile(baseCount: Int, startY: CGFloat) {
-        let cellSize: CGFloat = 58
-        let blockSize = CGSize(width: 50, height: 50)
-        //let startY: CGFloat = -260
-        
-        for row in 0..<baseCount {
-            let blocksInRow = baseCount - row
-            let rowWidth = CGFloat(blocksInRow - 1) * cellSize
-            let rowStartX = -rowWidth / 2
-            
-            for column in 0..<blocksInRow {
-                let blockIndex = row * baseCount + column
-                
-                let position = CGPoint(
-                    x: rowStartX + CGFloat(column) * cellSize,
-                    y: startY + CGFloat(row) * cellSize
-                )
-                
-                /// Deterministic variation: no random, same value every run.
-                let rotationDirection: CGFloat = blockIndex.isMultiple(of: 2) ? 1 : -1
-                let rotationAmount = CGFloat((blockIndex % 5) + 1) * 0.025
-                let rotation = rotationDirection * rotationAmount
-                
-                createBlock(
-                    size: blockSize,
-                    position: position,
-                    rotation: rotation
-                )
-            }
-        }
-    }
+    // MARK: Stack
     
     func createStack(
         columns: Int,
@@ -63,6 +31,45 @@ extension Scene {
                     size: blockSize,
                     position: position,
                     rotation: 0
+                )
+            }
+        }
+    }
+    
+    // MARK: Pile
+    
+    func createPile(baseCount: Int, startY: CGFloat) {
+        let cellSize: CGFloat = 52
+        let blockSize = CGSize(width: 50, height: 50)
+        
+        for row in 0..<baseCount {
+            let blocksInRow = baseCount - row
+            let rowWidth = CGFloat(blocksInRow - 1) * cellSize
+            let rowStartX = -rowWidth / 2
+            
+            for column in 0..<blocksInRow {
+                let blockIndex = row * baseCount + column
+                
+                /// Higher rows lean more, so the top of the pile is already biased toward collapse.
+                let rowLean = CGFloat(row) * 5
+                
+                /// Alternate small offsets so contacts are not perfectly centered.
+                let horizontalOffset = CGFloat((blockIndex % 3) - 1) * 1.6
+                
+                let position = CGPoint(
+                    x: rowStartX + CGFloat(column) * cellSize + rowLean + horizontalOffset,
+                    y: startY + CGFloat(row) * cellSize
+                )
+                
+                /// Higher blocks are rotated more, making them roll / slide once the pile hits the ground.
+                let rotationDirection: CGFloat = row.isMultiple(of: 2) ? 1 : -1
+                let rotationAmount = CGFloat(row + 1) * 0.065
+                let rotation = rotationDirection * rotationAmount
+                
+                createBlock(
+                    size: blockSize,
+                    position: position,
+                    rotation: rotation
                 )
             }
         }
@@ -117,7 +124,7 @@ extension Scene {
         
         body.createShape(polygon, shapeDef: shapeDef)
         
-        entities[body.id] = Entity(node: node, body: body)
+        indexedEntities[body.id] = Entity(node: node, body: body)
     }
     
 }
@@ -132,7 +139,6 @@ extension Scene {
         let cellSize: CGFloat = 60
         let blockSize = CGSize(width: 50, height: 50)
         let cornerRadius: CGFloat = 9
-        let colors: [SKColor] = [.systemOrange, .systemYellow, .systemTeal, .systemRed, .white, .systemGray]
         let startY: CGFloat = -150
         
         /// Start at the bottom-left of the grid, then grow right and up
@@ -206,7 +212,7 @@ extension Scene {
                 
                 let entity = Entity(node: node, body: body)
                 rowEntities.append(entity)
-                entities[body.id] = Entity(node: node, body: body)
+                indexedEntities[body.id] = Entity(node: node, body: body)
             }
             
             gridEntities.append(rowEntities)
@@ -242,7 +248,13 @@ extension Scene {
                     
                     /// Joint visualization
                     if drawJoints {
-                        addJointVisualization(for: joint, drawsBodyBAnchor: false)
+                        addJointVisualization(
+                            for: joint,
+                            drawsAnchorLine: false,
+                            drawsAnchorPoints: false,
+                            drawsBodyToAnchorLines: true,
+                            drawsFrames: false
+                        )
                     }
                 }
                 
@@ -272,7 +284,13 @@ extension Scene {
                     
                     /// Joint visualization
                     if drawJoints {
-                        addJointVisualization(for: joint, drawsBodyBAnchor: false)
+                        addJointVisualization(
+                            for: joint,
+                            drawsAnchorLine: false,
+                            drawsAnchorPoints: false,
+                            drawsBodyToAnchorLines: true,
+                            drawsFrames: false
+                        )
                     }
                 }
             }

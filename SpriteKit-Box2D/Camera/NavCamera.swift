@@ -7,12 +7,13 @@
  
  ## Usage
  
- - Create an instance of NavigationCamera
- - Attach SKView in didMove to setup gesture recognizers
- - Call the instance's update() inside SpriteKit update function to enable inertia
- - Call the instance instance touchesBegan() inside SpriteKit touchesBegan to stop the camera on touch.
- 
- Tested on iOS.
+ - Create a scene wide instance of NavigationCamera.
+ - Optionally attach a camera delegate.
+ - Optionally attach a gesture recognizer delegate before attaching a view.
+ - Attach the view on which recognizers work, such as SKView in didMove.
+ - Call the instance's update() inside SpriteKit's update in order to enable inertia.
+ - Call the instance's didEvaluateActions() after SpriteKit has evaluated actions, in order to update the camera delegate.
+ - Call the instance's stop() inside SpriteKit touchesBegan to stop the camera on touch.
  
  ## Documentation
  
@@ -22,21 +23,26 @@
  
  Achraf Kassioui
  Created: 8 April 2024
- Updated: 23 May 2026
+ Updated: 28 May 2026
  
  */
 
 import SpriteKit
 
 // MARK: Protocol
-
+/**
+ 
+Conform to this protocol to react to camera changes.
+ 
+ */
 protocol NavigationCameraDelegate: AnyObject {
     func cameraDidScale(to scale: CGPoint)
     func cameraDidMove(to position: CGPoint)
     func cameraDidRotate(to angle: CGFloat)
 }
 
-/// Subclass SKCameraNode, and add the protocol that allows simulatenous gesture recognition
+// MARK: Camera
+
 class NavigationCamera: SKCameraNode {
     
     // MARK: Settings
@@ -370,7 +376,7 @@ class NavigationCamera: SKCameraNode {
             self.position = clamp(position: self.position, to: area)
             
             /// It is important to implement panning by immediately applying delta translations to the current camera position.
-            /// If we used a logic that applies the cumulative translation since the gesture has started, there would be a confilct with other logics that also change camera position repeatedly, such as rotation.
+            /// If we used a logic that applies the cumulative translation since the gesture has started, there would be a confilct with other logic that also change camera position repeatedly, such as rotation.
             /// See: https://gist.github.com/AchrafKassioui/bd835b99a78e9ce29b08ce406896c59b
             /// We reset the translation so that after each gesture change, we get a delta, not an accumulation.
             gesture.setTranslation(.zero, in: gesturesView)
@@ -631,14 +637,14 @@ class NavigationCamera: SKCameraNode {
         tapRecognizer.delaysTouchesBegan = false
         
         /// Prevent the recognizers from cancelling touch events once a gesture is recognized.
-        /// In UIKit, this property is set to true by default. Set to false to send touch events even after a gesture is recognized.
+        /// In UIKit, this property is set to true by default.
         panRecognizer.cancelsTouchesInView = false
-        pinchRecognizer.cancelsTouchesInView = true
-        rotationRecognizer.cancelsTouchesInView = true
+        pinchRecognizer.cancelsTouchesInView = false
+        rotationRecognizer.cancelsTouchesInView = false
         tapRecognizer.cancelsTouchesInView = false
         
         /// Allow `touchesEnded` to fire immediately, preventing delays caused by UIKit's default gesture handling.
-        /// This avoids missing `touchesEnded` events when using gesture recognizers.
+        /// This avoids missing `touchesEnded` events when a gesture is recognized.
         panRecognizer.delaysTouchesEnded = false
         pinchRecognizer.delaysTouchesEnded = false
         rotationRecognizer.delaysTouchesEnded = false

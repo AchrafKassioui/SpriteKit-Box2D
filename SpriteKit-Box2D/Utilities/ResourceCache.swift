@@ -2,6 +2,14 @@
  
  # Resource Cache
  
+ A texture generator + cache.
+ Uses Core Graphics to generate SKTexture.
+ Cache allows to reuse the same texture for many nodes.
+ 
+ ## Todo
+ 
+ Cache must be capped.
+ 
  Achraf Kassioui
  Created 19 May 2026
  Updated 22 May 2026

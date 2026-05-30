@@ -509,6 +509,11 @@ class DeterminismScene: SKScene {
         }
     }
     
+    override func didFinishUpdate() {
+        /// Sync rendering
+        syncSpriteKitFromBox2D()
+    }
+    
     // MARK: Fixed Update
     
     private func fixedUpdate(_ fixedTimestep: TimeInterval) {
@@ -549,9 +554,6 @@ current  hash: \(currentHash)
             print("Paused at fixed step: \(testFixedStepIndex), hash: \(currentHash)")
             previousHash = currentHash
         }
-        
-        /// Sync rendering
-        syncSpriteKitFromBox2D()
     }
     
     private func syncSpriteKitFromBox2D() {
