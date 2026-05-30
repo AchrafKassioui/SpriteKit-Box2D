@@ -53,12 +53,12 @@
  
  Achraf Kassioui
  Created 25 May 2026
- Updated 26 May 2026
+ Updated 30 May 2026
  
  */
-import SpriteKit
-import SwiftBox2D
 import SwiftUI
+import SpriteKit
+import box2d
 
 // MARK: View
 
@@ -90,8 +90,8 @@ class DeterminismScene: SKScene {
     /// Custom camera for inspecting the scene
     let navCamera = NavigationCamera()
     
-    /// The Box2D world that owns all bodies and runs the simulation
-    private var b2DWorld = B2World()
+    /// Box2D world id.
+    private var b2WorldId: b2WorldId = b2_nullWorldId
     
     /// How many SpriteKit screen points is one meter in the simulation
     static let pointsPerMeter: CGFloat = 150
@@ -122,7 +122,7 @@ class DeterminismScene: SKScene {
     /// An object that references a visual node and a Box2D body
     private struct Entity {
         weak var node: SKNode?
-        let body: B2Body
+        let bodyId: b2BodyId
     }
     
     private var entities: [Entity] = []
@@ -162,12 +162,14 @@ class DeterminismScene: SKScene {
     }
     
     override func willMove(from view: SKView) {
-        removeEntities()
+        removeContent()
+        destroyWorld()
         removeAllChildren()
     }
     
     deinit {
-        removeEntities()
+        removeContent()
+        destroyWorld()
         removeAllChildren()
     }
     
@@ -223,12 +225,16 @@ class DeterminismScene: SKScene {
     // MARK: Rollback
     
     private func restartSimulation() {
-        removeEntities()
+        /// Remove SpriteKit nodes and Swift references from the previous run.
+        removeContent()
+        
+        /// Destroying the world destroys every Box2D body, shape, contact, and joint inside it.
+        destroyWorld()
         
         /// Create a new physics world.
-        /// B2World is a Swift class, its deinit calls `b2DestroyWorld(id)`
-        b2DWorld = B2World()
-        b2DWorld.gravity = B2Vec2(x: 0, y: -10)
+        var worldDef = b2DefaultWorldDef()
+        worldDef.gravity = b2Vec2(x: 0, y: -10)
+        b2WorldId = b2CreateWorld(&worldDef)
         
         /// Reset time tracking
         testFixedStepIndex = 0
@@ -248,13 +254,20 @@ class DeterminismScene: SKScene {
         syncSpriteKitFromBox2D()
     }
     
-    private func removeEntities() {
-        /// Remove content nodes
+    private func removeContent() {
+        /// Remove content nodes.
         contentParent.removeAllChildren()
         
-        /// Drop references
+        /// Drop Swift references.
         entities.removeAll()
         transientEntity = nil
+    }
+    
+    private func destroyWorld() {
+        guard b2World_IsValid(b2WorldId) else { return }
+        
+        b2DestroyWorld(b2WorldId)
+        b2WorldId = b2_nullWorldId
     }
     
     // MARK: Ground
@@ -275,30 +288,30 @@ class DeterminismScene: SKScene {
         parent.addChild(shape)
         
         /// Box2D body
-        var bodyDef = b2BodyDef.default()
-        bodyDef.type = B2BodyType.b2StaticBody
-        bodyDef.position = B2Vec2(
+        var bodyDef = b2DefaultBodyDef()
+        bodyDef.type = b2_staticBody
+        bodyDef.position = b2Vec2(
             x: meters(fromPoints: position.x),
             y: meters(fromPoints: position.y)
         )
         
-        let body = b2DWorld.createBody(bodyDef)
+        let bodyId = b2CreateBody(b2WorldId, &bodyDef)
         
-        var shapeDef = b2ShapeDef.default()
+        var shapeDef = b2DefaultShapeDef()
         shapeDef.density = 0
         shapeDef.filter.categoryBits = PhysicsCategory.wall
         
-        /// Box2D box dimensions are half extents in meters
-        let polygon = B2Polygon.makeBox(
-            halfWidth: meters(fromPoints: size.width / 2),
-            halfHeight: meters(fromPoints: size.height / 2)
+        /// Box2D box dimensions are half extents in meters.
+        var polygon = b2MakeBox(
+            meters(fromPoints: size.width / 2),
+            meters(fromPoints: size.height / 2)
         )
         
-        body.createShape(polygon, shapeDef: shapeDef)
+        b2CreatePolygonShape(bodyId, &shapeDef, &polygon)
         
         entities.append(Entity(
             node: shape,
-            body: body,
+            bodyId: bodyId
         ))
     }
     
@@ -347,7 +360,7 @@ class DeterminismScene: SKScene {
                 parent: parent,
                 size: nodeSize,
                 position: position,
-                rotation: 0
+                rotation: 0.2
             )
         }
     }
@@ -375,36 +388,36 @@ class DeterminismScene: SKScene {
         parent.addChild(rectangle)
         
         /// Box2D body
-        var bodyDef = b2BodyDef.default()
-        bodyDef.type = B2BodyType.b2DynamicBody
-        bodyDef.position = B2Vec2(
+        var bodyDef = b2DefaultBodyDef()
+        bodyDef.type = b2_dynamicBody
+        bodyDef.position = b2Vec2(
             x: meters(fromPoints: position.x),
             y: meters(fromPoints: position.y)
         )
-        bodyDef.rotation = B2Rot(fromRadians: Float(rotation))
+        bodyDef.rotation = b2MakeRot(Float(rotation))
         bodyDef.linearDamping = 0.1
         bodyDef.angularDamping = 0.1
         
-        let body = b2DWorld.createBody(bodyDef)
+        let bodyId = b2CreateBody(b2WorldId, &bodyDef)
         
-        var shapeDef = b2ShapeDef.default()
+        var shapeDef = b2DefaultShapeDef()
         shapeDef.filter.categoryBits = PhysicsCategory.block
         shapeDef.filter.maskBits = PhysicsCategory.wall | PhysicsCategory.block
         shapeDef.density = 1.0
         shapeDef.material.friction = 0.6
         shapeDef.material.restitution = 0.2
         
-        /// Box2D box dimensions are half extents in meters
-        let polygon = B2Polygon.makeBox(
-            halfWidth: meters(fromPoints: size.width / 2),
-            halfHeight: meters(fromPoints: size.height / 2)
+        /// Box2D box dimensions are half extents in meters.
+        var polygon = b2MakeBox(
+            meters(fromPoints: size.width / 2),
+            meters(fromPoints: size.height / 2)
         )
         
-        body.createShape(polygon, shapeDef: shapeDef)
+        b2CreatePolygonShape(bodyId, &shapeDef, &polygon)
         
         entities.append(Entity(
             node: rectangle,
-            body: body,
+            bodyId: bodyId
         ))
     }
     
@@ -442,41 +455,44 @@ class DeterminismScene: SKScene {
         contentParent.addChild(rectangle)
         
         /// Box2D body
-        var bodyDef = b2BodyDef.default()
-        bodyDef.type = B2BodyType.b2DynamicBody
-        bodyDef.position = B2Vec2(
+        var bodyDef = b2DefaultBodyDef()
+        bodyDef.type = b2_dynamicBody
+        bodyDef.position = b2Vec2(
             x: meters(fromPoints: position.x),
             y: meters(fromPoints: position.y)
         )
         
-        let body = b2DWorld.createBody(bodyDef)
+        let bodyId = b2CreateBody(b2WorldId, &bodyDef)
         
-        var shapeDef = b2ShapeDef.default()
+        var shapeDef = b2DefaultShapeDef()
         shapeDef.density = 1.0
         shapeDef.material.restitution = 0.7
         
-        /// Does not collide with boxes
+        /// Does not collide with boxes.
         shapeDef.filter.maskBits = PhysicsCategory.wall
         
-        let polygon = B2Polygon.makeBox(
-            halfWidth: meters(fromPoints: size.width / 2),
-            halfHeight: meters(fromPoints: size.height / 2)
+        var polygon = b2MakeBox(
+            meters(fromPoints: size.width / 2),
+            meters(fromPoints: size.height / 2)
         )
         
-        body.createShape(polygon, shapeDef: shapeDef)
+        b2CreatePolygonShape(bodyId, &shapeDef, &polygon)
         
         transientEntity = Entity(
             node: rectangle,
-            body: body
+            bodyId: bodyId
         )
     }
     
     private func destroyTransientBody() {
         guard let transientEntity else { return }
         
-        /// Remove transient visual and destroy its Box2D body
+        /// Remove node and destroy its Box2D body.
         transientEntity.node?.removeFromParent()
-        transientEntity.body.destroy()
+        
+        if b2Body_IsValid(transientEntity.bodyId) {
+            b2DestroyBody(transientEntity.bodyId)
+        }
         
         self.transientEntity = nil
     }
@@ -532,7 +548,7 @@ class DeterminismScene: SKScene {
         updateTransientBody()
         
         /// Run the Box2D simulation
-        b2DWorld.step(Float(fixedTimestep), subSteps: 4)
+        b2World_Step(b2WorldId, Float(fixedTimestep), 4)
         testFixedStepIndex += 1
         
         stepLabel.text =
@@ -568,16 +584,17 @@ current  hash: \(currentHash)
     
     private func syncNodeFromBody(_ entity: Entity) {
         guard let node = entity.node else { return }
+        guard b2Body_IsValid(entity.bodyId) else { return }
         
-        let bodyPosition = entity.body.getPosition()
-        let bodyRotation = entity.body.getRotation()
+        let bodyPosition = b2Body_GetPosition(entity.bodyId)
+        let bodyRotation = b2Body_GetRotation(entity.bodyId)
         
         node.position = CGPoint(
             x: points(fromMeters: bodyPosition.x),
             y: points(fromMeters: bodyPosition.y)
         )
         
-        node.zRotation = CGFloat(bodyRotation.angle)
+        node.zRotation = CGFloat(b2Rot_GetAngle(bodyRotation))
     }
     
     // MARK: Hash
@@ -586,12 +603,15 @@ current  hash: \(currentHash)
         var hash: UInt64 = 14_695_981_039_346_656_037
         
         for entity in entities {
-            let bodyPosition = entity.body.getPosition()
-            let bodyRotation = entity.body.getRotation()
+            guard b2Body_IsValid(entity.bodyId) else { continue }
+            
+            let bodyPosition = b2Body_GetPosition(entity.bodyId)
+            let bodyRotation = b2Body_GetRotation(entity.bodyId)
+            let bodyAngle = b2Rot_GetAngle(bodyRotation)
             
             mixHash(&hash, bodyPosition.x.bitPattern)
             mixHash(&hash, bodyPosition.y.bitPattern)
-            mixHash(&hash, bodyRotation.angle.bitPattern)
+            mixHash(&hash, bodyAngle.bitPattern)
         }
         
         return String(hash, radix: 16)

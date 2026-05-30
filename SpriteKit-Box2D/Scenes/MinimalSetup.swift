@@ -38,7 +38,9 @@ struct MinimalSetupView: View {
 
 class MinimalScene: SKScene {
     
-    /// Initialize a Box2D world ID.
+    // MARK: Properties
+    
+    /// The id of the Box2D physics world.
     /// In the Box2D C API, all objects are handled with an ID.
     var b2WorldID: b2WorldId = b2_nullWorldId
     
@@ -53,6 +55,8 @@ class MinimalScene: SKScene {
     /// How many SpriteKit screen points is one meter in the simulation.
     /// Arbitrary value. In SpriteKit's own physics engine, 1 meter = 150 points.
     let pointsPerMeter: CGFloat = 150
+    
+    // MARK: Lifecycle
 
     /// Setup the scene when it's presented by a view.
     override func didMove(to view: SKView) {
@@ -98,9 +102,7 @@ class MinimalScene: SKScene {
             meters(fromPoints: spriteSize.width / 2),
             meters(fromPoints: spriteSize.height / 2)
         )
-        
-        /// The & here is Swift syntax than means unsafePointer, i.e. we directly point to a location in memory.
-        /// It's up to the programmer to manage the pointer's bounds and lifetime.
+
         b2CreatePolygonShape(bodyID, &shapeDef, &box)
         
         /// Give the body an initial spin.
@@ -118,6 +120,8 @@ class MinimalScene: SKScene {
         }
         self.removeAllChildren()
     }
+    
+    // MARK: Update
     
     override func update(_ currentTime: TimeInterval) {
         /// Run Box2D with a fixed timestep.
