@@ -1,0 +1,11 @@
+//
+//  module.modulemap
+//  SpriteKit-Box2D
+//
+//  Created by Achraf Kassioui on 31/5/2026.
+//
+
+module box2d {
+    header "box2d/box2d.h"
+    export *
+}

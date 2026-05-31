@@ -6,7 +6,7 @@
  
  Achraf Kassioui
  Created 26 May 2026
- Updated 30 May 2026
+ Updated 31 May 2026
  
  */
 import SpriteKit
@@ -133,6 +133,121 @@ extension Scene {
         b2CreatePolygonShape(bodyID, &shapeDef, &polygon)
         
         indexedEntities[bodyID] = Entity(node: node, bodyID: bodyID)
+    }
+    
+}
+
+// MARK: Large Pile
+
+extension Scene {
+    
+    func createLargePile(
+        columns: Int,
+        rows: Int,
+        startY: CGFloat
+    ) {
+        let cellSize: CGFloat = 100
+        let blockSizes: [CGFloat] = [15, 30, 60, 75, 100]
+        let cornerRadius: CGFloat = 9
+        
+        let colors: [SKColor] = [
+            .systemOrange,
+            .systemYellow,
+            .systemTeal,
+            .systemRed,
+            .white,
+            .systemGray
+        ]
+        
+        let gridWidth = CGFloat(columns) * cellSize
+        let originX = -gridWidth / 2 + cellSize / 2
+        let originY = startY + cellSize / 2
+        
+        for row in 0..<rows {
+            for column in 0..<columns {
+                let blockIndex = row * columns + column
+                
+                /// Deterministic shape variation: same pile every time this preset is loaded.
+                let isRectangle = blockIndex.isMultiple(of: 2)
+                
+                /// Deterministic size variation, replacing randomElement().
+                let width = blockSizes[blockIndex % blockSizes.count]
+                let heightIndex = (blockIndex / blockSizes.count + column + row) % blockSizes.count
+                let height = isRectangle ? blockSizes[heightIndex] : width
+                
+                /// Deterministic color variation.
+                let color = colors[blockIndex % colors.count]
+                
+                /// Deterministic small offsets, replacing CGFloat.random().
+                /// This keeps the pile imperfect without making the preset random.
+                let horizontalOffsetPattern = CGFloat((blockIndex % 5) - 2)
+                let verticalOffsetPattern = CGFloat(((blockIndex / 5) % 5) - 2)
+                let xOffset = horizontalOffsetPattern * cellSize * 0.025
+                let yOffset = verticalOffsetPattern * cellSize * 0.025
+                
+                let position = CGPoint(
+                    x: originX + CGFloat(column) * cellSize + xOffset,
+                    y: originY + CGFloat(row) * cellSize + yOffset
+                )
+                
+                /// SpriteKit visual node.
+                let texture = ResourceCache.texture(
+                    isRectangle: isRectangle,
+                    width: width,
+                    height: height,
+                    cornerRadius: cornerRadius
+                )
+                
+                let node = SKSpriteNode(texture: texture, size: CGSize(width: width, height: height))
+                node.color = color
+                node.colorBlendFactor = 1
+                node.position = position
+                node.zPosition = ZPosition.content
+                contentParent.addChild(node)
+                
+                /// Box2D body.
+                var bodyDef = b2DefaultBodyDef()
+                bodyDef.type = b2_dynamicBody
+                bodyDef.position = b2Vec2(
+                    x: meters(fromPoints: position.x),
+                    y: meters(fromPoints: position.y)
+                )
+                bodyDef.linearDamping = 0
+                bodyDef.angularDamping = 0.1
+                
+                let bodyID = b2CreateBody(b2WorldId, &bodyDef)
+                
+                /// Box2D material.
+                var shapeDef = b2DefaultShapeDef()
+                shapeDef.density = 2
+                shapeDef.material.friction = 0.5
+                shapeDef.material.restitution = 0.2
+                shapeDef.filter.categoryBits = PhysicsCategory.block
+                shapeDef.filter.maskBits = PhysicsCategory.wall | PhysicsCategory.block | PhysicsCategory.chain
+                
+                if isRectangle {
+                    /// Box2D box dimensions are half extents in meters.
+                    var polygon = b2MakeBox(
+                        meters(fromPoints: width / 2),
+                        meters(fromPoints: height / 2)
+                    )
+                    
+                    b2CreatePolygonShape(bodyID, &shapeDef, &polygon)
+                } else {
+                    /// Circle block matches the visual circle radius.
+                    var circle = b2Circle(
+                        center: b2Vec2(x: 0, y: 0),
+                        radius: meters(fromPoints: width / 2)
+                    )
+                    
+                    b2CreateCircleShape(bodyID, &shapeDef, &circle)
+                }
+                
+                indexedEntities[bodyID] = Entity(node: node, bodyID: bodyID)
+            }
+        }
+        
+        print("\nLarge pile of \(columns * rows) bodies")
     }
     
 }

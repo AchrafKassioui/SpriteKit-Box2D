@@ -4,7 +4,7 @@
  
  Achraf Kassioui
  Created 19 May 2026
- Updated 23 May 2026
+ Updated 31 May 2026
  
  */
 import SwiftUI
@@ -41,7 +41,7 @@ struct Home: View {
             
             GeometryReader { geometry in
                 let edgePadding: CGFloat = 10
-                let topPadding: CGFloat = edgePadding + titleBarHeight
+                let topPadding: CGFloat = edgePadding// + titleBarHeight
                 let bottomPadding: CGFloat = edgePadding
                 let leadingPadding: CGFloat = edgePadding
                 let trailingPadding: CGFloat = edgePadding
@@ -109,6 +109,12 @@ struct PresetMenu: View {
             })
             
             Button(action: {
+                Presets.largePile(scene)
+            }, label: {
+                Text("Large Pile")
+            })
+            
+            Button(action: {
                 Presets.weldStack(scene)
             }, label: {
                 Text("Welded Blocks")
@@ -164,6 +170,14 @@ enum Presets {
         scene.setupBox2D(gravityLength: -10)
         scene.createGround(width: 2000)
         scene.createPile(baseCount: 5, startY: 100)
+    }
+    
+    static func largePile(_ scene: SpriteKit_Box2D.Scene) {
+        scene.removeContent()
+        scene.setupBox2D(gravityLength: -10)
+        scene.createWalls(width: 10000)
+        scene.createLargePile(columns: 10, rows: 500, startY: 500)
+        scene.enableDrag = false
     }
     
     static func weldStack(_ scene: SpriteKit_Box2D.Scene) {

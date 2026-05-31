@@ -11,7 +11,7 @@
  */
 import SwiftUI
 import SpriteKit
-import SwiftBox2D
+import box2d
 
 // MARK: View
 
@@ -37,53 +37,109 @@ struct PileOfBlocksView: View {
 // MARK: Scene
 
 class PileOfBlocksScene: SKScene {
-
+    
     // MARK: Properties
-
+    
     let navCamera = NavigationCamera()
     let contentParent = SKNode()
     
     /// Box2D
-    private let b2DWorld = B2World()
+    private var b2WorldID: b2WorldId = b2_nullWorldId
     static let pointsPerMeter: CGFloat = 150
     
     private struct BodyNode {
-        let body: B2Body
+        let bodyId: b2BodyId
         weak var node: SKNode?
     }
+    
     private var bodyNodes: [BodyNode] = []
     
-    private var testJoints: [B2DistanceJoint] = []
-    private var jointDebugLines: [(joint: B2DistanceJoint, line: SKShapeNode)] = []
+    private struct JointDebugLine {
+        let jointId: b2JointId
+        let line: SKShapeNode
+    }
+    
+    private var testJoints: [b2JointId] = []
+    private var jointDebugLines: [JointDebugLine] = []
     
     private let palette: [SKColor] = [
         .systemOrange, .systemYellow, .systemTeal,
         .systemRed, .white, .systemGray
     ]
     
+    /// Timing
+    private let fixedTimestep: TimeInterval = 1 / 60
+    private var lastUpdateTime: TimeInterval?
+    private var accumulatedTime: TimeInterval = 0
+    
+    /// Restart UI
+    private let restartButton = SKLabelNode()
+    private var shouldRestartSimulation = false
+    
     /// Tap state
     private var tapStartLocation: CGPoint?
     private var tapStartTime: TimeInterval?
+    
+    /// Profiling
+    var box2DBeforePhysicsTime: TimeInterval = CACurrentMediaTime()
+    var box2DPhysicsProfiler = PhysicsStepProfiler(label: "Box2D physics")
     
     // MARK: Lifecycle
     
     override func didMove(to view: SKView) {
         view.contentMode = .center
+        view.contentScaleFactor = 1
         size = view.bounds.size
         backgroundColor = .darkGray
         scaleMode = .resizeFill
         anchorPoint = CGPoint(x: 0.5, y: 0.5)
         
-        b2DWorld.gravity = B2Vec2(x: 0, y: 0)
-        b2DWorld.enableSleeping(false)
-        
         addChild(contentParent)
         
         setupCamera(view: view)
-        createWalls(parent: contentParent)
-        createBlocks(parent: contentParent)
-        createJointedBlocks(parent: contentParent)
-        scheduleGravityDrop(afterSeconds: 2)
+        createRestartButton()
+        updateUI(view: view)
+        restartSimulation()
+    }
+    
+    override func didChangeSize(_ oldSize: CGSize) {
+        guard let view else { return }
+        updateUI(view: view)
+    }
+    
+    override func willMove(from view: SKView) {
+        cleanup()
+    }
+    
+    deinit {
+        cleanup()
+    }
+    
+    // MARK: Cleanup
+    
+    private func cleanup() {
+        removeAllActions()
+        removeContent()
+        destroyWorld()
+        removeAllChildren()
+    }
+    
+    private func removeContent() {
+        /// Restart button and camera are not removed.
+        contentParent.removeAllChildren()
+        
+        bodyNodes.removeAll()
+        testJoints.removeAll()
+        jointDebugLines.removeAll()
+        
+        cleanupTouch()
+    }
+    
+    private func destroyWorld() {
+        if b2World_IsValid(b2WorldID) {
+            b2DestroyWorld(b2WorldID)
+            b2WorldID = b2_nullWorldId
+        }
     }
     
     // MARK: Camera
@@ -103,13 +159,70 @@ class PileOfBlocksScene: SKScene {
         addChild(navCamera)
     }
     
+    // MARK: UI
+    
+    private func createRestartButton() {
+        restartButton.text = "Restart"
+        restartButton.name = "restartButton"
+        restartButton.fontName = "Menlo-Bold"
+        restartButton.fontSize = 20
+        restartButton.fontColor = .white
+        navCamera.addChild(restartButton)
+    }
+    
+    private func updateUI(view: SKView) {
+        restartButton.position = CGPoint(
+            x: 0,
+            y: view.bounds.height / 2 - view.safeAreaInsets.top - 35
+        )
+    }
+    
+    // MARK: Box2D World
+    
+    private func setupBox2D() {
+        var worldDef = b2DefaultWorldDef()
+        worldDef.gravity = b2Vec2(x: 0, y: 0)
+        worldDef.restitutionThreshold = 0
+        
+        b2WorldID = b2CreateWorld(&worldDef)
+        
+        /// Keep the original scene behavior: every body stays awake.
+        b2World_EnableSleeping(b2WorldID, false)
+    }
+    
+    private func restartSimulation() {
+        removeAllActions()
+        removeContent()
+        destroyWorld()
+        
+        setupBox2D()
+        
+        createWalls(parent: contentParent)
+        createBlocks(parent: contentParent)
+        createJointedBlocks(parent: contentParent)
+        scheduleGravityDrop(afterSeconds: 2)
+        
+        lastUpdateTime = nil
+        accumulatedTime = 0
+    }
+    
     // MARK: Gravity
     
     private func scheduleGravityDrop(afterSeconds seconds: TimeInterval) {
         run(.sequence([
             .wait(forDuration: seconds),
             .run { [weak self] in
-                self?.b2DWorld.gravity = B2Vec2(x: 0, y: -10)
+                guard let self else { return }
+                
+                b2World_SetGravity(
+                    b2WorldID,
+                    b2Vec2(x: 0, y: -10)
+                )
+                
+                /// Wake every body once when gravity starts.
+                for bodyNode in bodyNodes {
+                    b2Body_SetAwake(bodyNode.bodyId, true)
+                }
             }
         ]))
     }
@@ -117,10 +230,10 @@ class PileOfBlocksScene: SKScene {
     // MARK: Explode
     
     private func explode(at scenePoint: CGPoint) {
-        var explosion = b2ExplosionDef.default()
+        var explosion = b2DefaultExplosionDef()
         
         /// Center of explosion in Box2D world meters.
-        explosion.position = B2Vec2(
+        explosion.position = b2Vec2(
             x: meters(fromPoints: scenePoint.x),
             y: meters(fromPoints: scenePoint.y)
         )
@@ -129,12 +242,12 @@ class PileOfBlocksScene: SKScene {
         explosion.radius = 1
         
         /// Strength fades to zero across this extra distance.
-        explosion.falloff = 1.0
+        explosion.falloff = 1
         
         /// Positive pushes away, negative pulls inward.
-        explosion.impulsePerLength = 50.0
+        explosion.impulsePerLength = 50
         
-        b2DWorld.explode(explosion)
+        b2World_Explode(b2WorldID, &explosion)
     }
     
     // MARK: Walls
@@ -145,7 +258,7 @@ class PileOfBlocksScene: SKScene {
      */
     private func createWalls(parent: SKNode) {
         let floorY: CGFloat = -300
-        let containerWidth: CGFloat = 5000
+        let containerWidth: CGFloat = 10000
         let wallHeight: CGFloat = 10000
         let wallThickness: CGFloat = 15
         
@@ -157,44 +270,46 @@ class PileOfBlocksScene: SKScene {
             wall.position = position
             parent.addChild(wall)
             
-            var bodyDef = b2BodyDef.default()
-            bodyDef.type = .b2StaticBody
-            bodyDef.position = B2Vec2(
+            var bodyDef = b2DefaultBodyDef()
+            bodyDef.type = b2_staticBody
+            bodyDef.position = b2Vec2(
                 x: meters(fromPoints: position.x),
                 y: meters(fromPoints: position.y)
             )
             
-            let body = b2DWorld.createBody(bodyDef)
+            let bodyId = b2CreateBody(b2WorldID, &bodyDef)
             
-            var shapeDef = b2ShapeDef.default()
+            var shapeDef = b2DefaultShapeDef()
             shapeDef.density = 0
             shapeDef.material.friction = 0.5
             shapeDef.material.restitution = 0.1
             
             /// Box2D box dimensions are half extents in meters.
-            let polygon = B2Polygon.makeBox(
-                halfWidth: meters(fromPoints: width / 2),
-                halfHeight: meters(fromPoints: height / 2)
+            var polygon = b2MakeBox(
+                meters(fromPoints: width / 2),
+                meters(fromPoints: height / 2)
             )
             
-            body.createShape(polygon, shapeDef: shapeDef)
+            b2CreatePolygonShape(bodyId, &shapeDef, &polygon)
+            
+            bodyNodes.append(BodyNode(bodyId: bodyId, node: wall))
         }
         
-        /// Floor: sits at floorY, top edge at floorY + wallThickness/2
+        /// Floor: sits at floorY, top edge at floorY + wallThickness / 2.
         makeWall(
             width: containerWidth,
             height: wallThickness,
             position: CGPoint(x: 0, y: floorY)
         )
         
-        /// Left wall: extends upward from the floor
+        /// Left wall: extends upward from the floor.
         makeWall(
             width: wallThickness,
             height: wallHeight,
             position: CGPoint(x: -containerWidth / 2, y: floorY + wallHeight / 2)
         )
         
-        /// Right wall: extends upward from the floor
+        /// Right wall: extends upward from the floor.
         makeWall(
             width: wallThickness,
             height: wallHeight,
@@ -209,21 +324,22 @@ class PileOfBlocksScene: SKScene {
      
      */
     private func createBlocks(parent: SKNode) {
-        let columns = 50
-        let rows = 50
+        let columns = 100
+        let rows = 100
         let cellSize: CGFloat = 100
         let blockSizes: [CGFloat] = [15, 30, 60, 75, 100]
         let cornerRadius: CGFloat = 9
-        let baseY: CGFloat = 1000 /// Y of the lowest row of blocks
+        let baseY: CGFloat = 1000 /// Y of the lowest row of blocks.
         
         let gridWidth = CGFloat(columns) * cellSize
         let originX = -gridWidth / 2 + cellSize / 2
         let originY = baseY + cellSize / 2
         
         var index = 0
+        
         for row in 0..<rows {
             for column in 0..<columns {
-                let isRectangle = (index % 2 == 0)
+                let isRectangle = index.isMultiple(of: 2)
                 let width = blockSizes.randomElement()!
                 let height = isRectangle ? blockSizes.randomElement()! : width
                 let color = palette[index % palette.count]
@@ -246,14 +362,14 @@ class PileOfBlocksScene: SKScene {
                 block.position = position
                 parent.addChild(block)
                 
-                let body = createBody(
+                let bodyId = createBody(
                     isRectangle: isRectangle,
                     width: width,
                     height: height,
                     position: position
                 )
                 
-                bodyNodes.append(BodyNode(body: body, node: block))
+                bodyNodes.append(BodyNode(bodyId: bodyId, node: block))
                 index += 1
             }
         }
@@ -298,40 +414,42 @@ class PileOfBlocksScene: SKScene {
         width: CGFloat,
         height: CGFloat,
         position: CGPoint
-    ) -> B2Body {
-        var bodyDef = b2BodyDef.default()
-        bodyDef.type = .b2DynamicBody
-        bodyDef.position = B2Vec2(
+    ) -> b2BodyId {
+        var bodyDef = b2DefaultBodyDef()
+        bodyDef.type = b2_dynamicBody
+        bodyDef.position = b2Vec2(
             x: meters(fromPoints: position.x),
             y: meters(fromPoints: position.y)
         )
         bodyDef.linearDamping = 0
         bodyDef.angularDamping = 0.1
         
-        let body = b2DWorld.createBody(bodyDef)
+        let bodyId = b2CreateBody(b2WorldID, &bodyDef)
         
-        var shapeDef = b2ShapeDef.default()
+        var shapeDef = b2DefaultShapeDef()
         shapeDef.density = 2
         shapeDef.material.friction = 0.5
         shapeDef.material.restitution = 0.2
         
         if isRectangle {
             /// Box2D box dimensions are half extents in meters.
-            let polygon = B2Polygon.makeBox(
-                halfWidth: meters(fromPoints: width / 2),
-                halfHeight: meters(fromPoints: height / 2)
+            var polygon = b2MakeBox(
+                meters(fromPoints: width / 2),
+                meters(fromPoints: height / 2)
             )
-            body.createShape(polygon, shapeDef: shapeDef)
+            
+            b2CreatePolygonShape(bodyId, &shapeDef, &polygon)
         } else {
-            /// Circle block matches SpriteKit's circleOfRadius(width / 2).
-            let circle = B2Circle(
-                center: B2Vec2(x: 0, y: 0),
+            /// Circle block matches the SpriteKit texture radius.
+            var circle = b2Circle(
+                center: b2Vec2(x: 0, y: 0),
                 radius: meters(fromPoints: width / 2)
             )
-            body.createShape(circle, shapeDef: shapeDef)
+            
+            b2CreateCircleShape(bodyId, &shapeDef, &circle)
         }
         
-        return body
+        return bodyId
     }
     
     // MARK: Joints
@@ -342,39 +460,72 @@ class PileOfBlocksScene: SKScene {
         let positionA = CGPoint(x: -90, y: 350)
         let positionB = CGPoint(x: 90, y: 350)
         
-        /// Visual blocks
-        let blockA = createNode(isRectangle: true, width: blockSize, height: blockSize, cornerRadius: cornerRadius, color: .systemRed)
+        /// Visual blocks.
+        let blockA = createNode(
+            isRectangle: true,
+            width: blockSize,
+            height: blockSize,
+            cornerRadius: cornerRadius,
+            color: .systemRed
+        )
         blockA.position = positionA
         parent.addChild(blockA)
         
-        let blockB = createNode(isRectangle: true, width: blockSize, height: blockSize, cornerRadius: cornerRadius, color: .systemBlue)
+        let blockB = createNode(
+            isRectangle: true,
+            width: blockSize,
+            height: blockSize,
+            cornerRadius: cornerRadius,
+            color: .systemBlue
+        )
         blockB.position = positionB
         parent.addChild(blockB)
         
-        /// Box2D bodies
-        let bodyA = createBody(isRectangle: true, width: blockSize, height: blockSize, position: positionA)
-        let bodyB = createBody(isRectangle: true, width: blockSize, height: blockSize, position: positionB)
+        /// Box2D bodies.
+        let bodyIdA = createBody(
+            isRectangle: true,
+            width: blockSize,
+            height: blockSize,
+            position: positionA
+        )
         
-        bodyNodes.append(BodyNode(body: bodyA, node: blockA))
-        bodyNodes.append(BodyNode(body: bodyB, node: blockB))
+        let bodyIdB = createBody(
+            isRectangle: true,
+            width: blockSize,
+            height: blockSize,
+            position: positionB
+        )
         
-        /// Distance joint between body centers
-        let worldPointA = B2Vec2(x: meters(fromPoints: positionA.x), y: meters(fromPoints: positionA.y))
-        let worldPointB = B2Vec2(x: meters(fromPoints: positionB.x), y: meters(fromPoints: positionB.y))
+        bodyNodes.append(BodyNode(bodyId: bodyIdA, node: blockA))
+        bodyNodes.append(BodyNode(bodyId: bodyIdB, node: blockB))
+        
+        /// Distance joint between body centers.
+        let worldPointA = b2Vec2(
+            x: meters(fromPoints: positionA.x),
+            y: meters(fromPoints: positionA.y)
+        )
+        
+        let worldPointB = b2Vec2(
+            x: meters(fromPoints: positionB.x),
+            y: meters(fromPoints: positionB.y)
+        )
+        
         let deltaX = worldPointB.x - worldPointA.x
         let deltaY = worldPointB.y - worldPointA.y
         let restLength = sqrt(deltaX * deltaX + deltaY * deltaY)
         
-        var jointDef = b2DistanceJointDef.default()
-        jointDef.bodyA = bodyA
-        jointDef.bodyB = bodyB
+        var jointDef = b2DefaultDistanceJointDef()
+        jointDef.base.bodyIdA = bodyIdA
+        jointDef.base.bodyIdB = bodyIdB
+        jointDef.base.localFrameA.p = b2Body_GetLocalPoint(bodyIdA, worldPointA)
+        jointDef.base.localFrameB.p = b2Body_GetLocalPoint(bodyIdB, worldPointB)
         jointDef.length = restLength
         jointDef.enableSpring = false
         
-        let joint = b2DWorld.createJoint(jointDef)
-        testJoints.append(joint)
+        let jointId = b2CreateDistanceJoint(b2WorldID, &jointDef)
+        testJoints.append(jointId)
         
-        /// Debug line so the joint is visible in SpriteKit
+        /// Debug line so the joint is visible in SpriteKit.
         let line = SKShapeNode()
         line.strokeColor = .black
         line.lineCap = .round
@@ -382,44 +533,89 @@ class PileOfBlocksScene: SKScene {
         line.zPosition = 100
         parent.addChild(line)
         
-        jointDebugLines.append((joint: joint, line: line))
+        jointDebugLines.append(JointDebugLine(jointId: jointId, line: line))
     }
     
     // MARK: Update
     
-    var box2DBeforePhysicsTime: TimeInterval = CACurrentMediaTime()
-    var box2DPhysicsProfiler = PhysicsStepProfiler(label: "Box2D physics")
-    
     override func update(_ currentTime: TimeInterval) {
         navCamera.update()
         
+        /// Calculate delta time from SpriteKit's current time.
+        guard let lastUpdateTime else {
+            lastUpdateTime = currentTime
+            return
+        }
+        
+        let deltaTime = currentTime - lastUpdateTime
+        self.lastUpdateTime = currentTime
+        
+        accumulatedTime += deltaTime
+    }
+    
+    override func didSimulatePhysics() {
+        while accumulatedTime >= fixedTimestep {
+            fixedUpdate(fixedTimestep)
+            accumulatedTime -= fixedTimestep
+        }
+    }
+    
+    override func didFinishUpdate() {
+        syncSpriteKitFromBox2D()
+        drawJointDebugLines()
+    }
+    
+    private func fixedUpdate(_ fixedTimestep: TimeInterval) {
+        if shouldRestartSimulation {
+            shouldRestartSimulation = false
+            restartSimulation()
+        }
+        
         box2DBeforePhysicsTime = CACurrentMediaTime()
         
-        /// Step Box2D
-        b2DWorld.step(1.0 / 60.0, subSteps: 4)
+        /// Step Box2D.
+        b2World_Step(b2WorldID, Float(fixedTimestep), 4)
         
         let afterPhysicsTime = CACurrentMediaTime()
         let physicsStepMS = (afterPhysicsTime - box2DBeforePhysicsTime) * 1000
         box2DPhysicsProfiler.record(milliseconds: physicsStepMS)
-        
+    }
+    
+    private func syncSpriteKitFromBox2D() {
         /// Copy Box2D body transforms into SpriteKit nodes.
-        for pair in bodyNodes {
-            guard let node = pair.node else { continue }
+        for bodyNode in bodyNodes {
+            guard let node = bodyNode.node else { continue }
+            guard b2Body_IsValid(bodyNode.bodyId) else { continue }
             
-            let bodyPosition = pair.body.getPosition()
-            let bodyRotation = pair.body.getRotation()
+            let bodyPosition = b2Body_GetPosition(bodyNode.bodyId)
+            let bodyRotation = b2Body_GetRotation(bodyNode.bodyId)
             
             node.position = CGPoint(
                 x: points(fromMeters: bodyPosition.x),
                 y: points(fromMeters: bodyPosition.y)
             )
-            node.zRotation = CGFloat(bodyRotation.angle)
+            
+            node.zRotation = CGFloat(b2Rot_GetAngle(bodyRotation))
         }
-        
-        /// Draw Box2D joint anchors
+    }
+    
+    private func drawJointDebugLines() {
+        /// Draw Box2D joint anchors.
         for jointDebugLine in jointDebugLines {
-            let worldPointA = jointDebugLine.joint.worldPointA()
-            let worldPointB = jointDebugLine.joint.worldPointB()
+            guard b2Joint_IsValid(jointDebugLine.jointId) else { continue }
+            
+            let bodyIdA = b2Joint_GetBodyA(jointDebugLine.jointId)
+            let bodyIdB = b2Joint_GetBodyB(jointDebugLine.jointId)
+            
+            let bodyTransformA = b2Body_GetTransform(bodyIdA)
+            let bodyTransformB = b2Body_GetTransform(bodyIdB)
+            
+            let localFrameA = b2Joint_GetLocalFrameA(jointDebugLine.jointId)
+            let localFrameB = b2Joint_GetLocalFrameB(jointDebugLine.jointId)
+            
+            /// Joint anchors are body-local, so convert them to world coordinates.
+            let worldPointA = b2TransformPoint(bodyTransformA, localFrameA.p)
+            let worldPointB = b2TransformPoint(bodyTransformB, localFrameB.p)
             
             let path = CGMutablePath()
             path.move(to: CGPoint(
@@ -438,12 +634,20 @@ class PileOfBlocksScene: SKScene {
     // MARK: Touch
     
     override func touchesBegan(_ touches: Set<UITouch>, with event: UIEvent?) {
-        guard let touch = touches.first else { return }
-        
         navCamera.stop()
         
-        /// Track tap
-        tapStartLocation = touch.location(in: self)
+        guard let touch = touches.first else { return }
+        let position = touch.location(in: self)
+        let touchedNodes = nodes(at: position)
+        
+        if touchedNodes.contains(where: { $0.name == "restartButton" }) {
+            shouldRestartSimulation = true
+            cleanupTouch()
+            return
+        }
+        
+        /// Track tap.
+        tapStartLocation = position
         tapStartTime = touch.timestamp
     }
     

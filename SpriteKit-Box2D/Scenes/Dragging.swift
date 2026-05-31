@@ -18,12 +18,12 @@
  
  Achraf Kassioui
  Created 20 May 2026
- Updated 27 May 2026
+ Updated 31 May 2026
  
  */
 import SpriteKit
 import SwiftUI
-import SwiftBox2D
+import box2d
 import Observation
 
 // MARK: View
@@ -145,7 +145,7 @@ class DraggingScene: SKScene, NavigationCameraDelegate, UIGestureRecognizerDeleg
     
     /// Camera
     let navCamera = NavigationCamera()
-    var isDraggingEnabled = false
+    var isDraggingEnabled = true
     var cameraZoomPercent = 100
     
     /// Timing
@@ -157,14 +157,14 @@ class DraggingScene: SKScene, NavigationCameraDelegate, UIGestureRecognizerDeleg
     /// Box2D
     private static let pointsPerMeter: CGFloat = 150 /// In SpriteKit, 150 points = 1 meter
     private let gravityLength: Float = 10
-    private let b2DWorld = B2World()
-    private let debugRenderer = Box2DDebugRenderer(pointsPerMeter: pointsPerMeter)
+    private var b2WorldId: b2WorldId = b2_nullWorldId
+    //private let debugRenderer = Box2DDebugRenderer(pointsPerMeter: pointsPerMeter)
     var debugPhysics: Bool = false /// Warning, if there are too many nodes, app may crash or framerate may tank.
     
     /// Entities
     private struct Entity {
         weak var node: SKNode?
-        let body: B2Body
+        let bodyId: b2BodyId
     }
     
     private var entities: [Entity] = []
@@ -172,10 +172,10 @@ class DraggingScene: SKScene, NavigationCameraDelegate, UIGestureRecognizerDeleg
     /// Dragging
     private struct DragState {
         let pointerEntity: Entity
-        let joint: B2MotorJoint
+        let jointID: b2JointId
         let jointViz: SKShapeNode
-        var targetPosition: B2Vec2
-        let targetRotation: B2Rot
+        var targetPosition: b2Vec2
+        let targetRotation: b2Rot
     }
     private var activeDrags: [UITouch: DragState] = [:]
     private let shouldMaintainAngle = true
@@ -197,7 +197,7 @@ class DraggingScene: SKScene, NavigationCameraDelegate, UIGestureRecognizerDeleg
         setupBox2D()
         
         /// Box2D debug
-        addChild(debugRenderer.node)
+        //addChild(debugRenderer.node)
         
         /// Content
         createContent()
@@ -217,15 +217,24 @@ class DraggingScene: SKScene, NavigationCameraDelegate, UIGestureRecognizerDeleg
         endDrags(wakeAttached: false)
         
         for entity in entities {
-            removeEntity(entity)
+            entity.node?.removeFromParent()
         }
         
-        self.removeAllChildren()
+        entities.removeAll()
+        removeAllChildren()
+        
+        /// The world owns all Box2D bodies, shapes, contacts, and joints.
+        if b2World_IsValid(b2WorldId) {
+            b2DestroyWorld(b2WorldId)
+            b2WorldId = b2_nullWorldId
+        }
     }
     
     private func removeEntity(_ entity: Entity) {
         entity.node?.removeFromParent()
-        entity.body.destroy()
+        if b2Body_IsValid(entity.bodyId) {
+            b2DestroyBody(entity.bodyId)
+        }
     }
     
     // MARK: Camera
@@ -266,20 +275,32 @@ class DraggingScene: SKScene, NavigationCameraDelegate, UIGestureRecognizerDeleg
     // MARK: Box2D World
     
     private func setupBox2D() {
-        b2DWorld.gravity = B2Vec2(x: 0, y: 0)
-        b2DWorld.restitutionThreshold = 0
+        /// Destroy the previous world if this scene is being reused.
+        if b2World_IsValid(b2WorldId) {
+            b2DestroyWorld(b2WorldId)
+            b2WorldId = b2_nullWorldId
+        }
+        
+        var worldDef = b2DefaultWorldDef()
+        worldDef.gravity = b2Vec2(x: 0, y: 0)
+        worldDef.restitutionThreshold = 0
+        
+        b2WorldId = b2CreateWorld(&worldDef)
         
         let action = SKAction.sequence([
             .wait(forDuration: 2),
             .run { [weak self] in
                 guard let self else { return }
-                b2DWorld.gravity = B2Vec2(x: 0, y: -gravityLength)
                 
+                b2World_SetGravity(b2WorldId, b2Vec2(x: 0, y: -gravityLength))
+                
+                /// Keep default sleeping enabled, but wake existing bodies once when gravity starts.
                 for entity in entities {
-                    entity.body.setAwake(true)
+                    b2Body_SetAwake(entity.bodyId, true)
                 }
             }
         ])
+        
         action.timingMode = .linear
         run(action)
     }
@@ -348,28 +369,29 @@ class DraggingScene: SKScene, NavigationCameraDelegate, UIGestureRecognizerDeleg
             node.position = position
             addChild(node)
             
-            /// Box2D body
-            var bodyDef = b2BodyDef.default()
-            bodyDef.type = .b2StaticBody
-            bodyDef.position = B2Vec2(
+            /// Box2D body.
+            var bodyDef = b2DefaultBodyDef()
+            bodyDef.type = b2_staticBody
+            bodyDef.position = b2Vec2(
                 x: meters(fromPoints: position.x),
                 y: meters(fromPoints: position.y)
             )
             
-            let body = b2DWorld.createBody(bodyDef)
+            let bodyId = b2CreateBody(b2WorldId, &bodyDef)
             
-            var shapeDef = b2ShapeDef.default()
+            /// Box2D material.
+            var shapeDef = b2DefaultShapeDef()
             shapeDef.density = 0
             
             /// Static container parts are simple rectangle collision shapes.
-            let polygon = B2Polygon.makeBox(
-                halfWidth: meters(fromPoints: size.width / 2),
-                halfHeight: meters(fromPoints: size.height / 2)
+            var polygon = b2MakeBox(
+                meters(fromPoints: size.width / 2),
+                meters(fromPoints: size.height / 2)
             )
             
-            body.createShape(polygon, shapeDef: shapeDef)
+            b2CreatePolygonShape(bodyId, &shapeDef, &polygon)
             
-            entities.append(Entity(node: node, body: body))
+            entities.append(Entity(node: node, bodyId: bodyId))
         }
     }
     
@@ -395,7 +417,7 @@ class DraggingScene: SKScene, NavigationCameraDelegate, UIGestureRecognizerDeleg
                 let blockY = groundTopY + gapAboveGround + (CGFloat(row) + 0.5) * cellSize
                 let position = CGPoint(x: blockX, y: blockY)
                 
-                let isCircle = Bool.random()
+                let isCircle = true
                 
                 /// SpriteKit node
                 let texture = ResourceCache.texture(
@@ -411,52 +433,59 @@ class DraggingScene: SKScene, NavigationCameraDelegate, UIGestureRecognizerDeleg
                 node.position = position
                 addChild(node)
                 
-                /// Box2D body
-                var bodyDef = b2BodyDef.default()
-                bodyDef.type = .b2DynamicBody
-                bodyDef.position = B2Vec2(
+                /// Box2D body.
+                var bodyDef = b2DefaultBodyDef()
+                bodyDef.type = b2_dynamicBody
+                bodyDef.position = b2Vec2(
                     x: meters(fromPoints: position.x),
                     y: meters(fromPoints: position.y)
                 )
+                
                 /// Tuning to prevent bodies from flying too far on drag release, but avoid gravity damping.
                 /// Tweak to taste.
                 bodyDef.linearDamping = 6
                 bodyDef.angularDamping = 2
                 bodyDef.gravityScale = 10
                 
-                let body = b2DWorld.createBody(bodyDef)
+                let bodyId = b2CreateBody(b2WorldId, &bodyDef)
                 
-                /// Box2D material
-                var shapeDef = b2ShapeDef.default()
+                /// Box2D material.
+                var shapeDef = b2DefaultShapeDef()
                 shapeDef.density = 1
                 shapeDef.material.friction = 0.5
                 shapeDef.material.restitution = 0.2
                 
                 if isCircle {
-                    /// Circle collision shape
-                    let circle = B2Circle(
-                        center: B2Vec2(x: 0, y: 0),
+                    /// Circle collision shape.
+                    var circle = b2Circle(
+                        center: b2Vec2(x: 0, y: 0),
                         radius: meters(fromPoints: blockSize.width / 2)
                     )
-                    body.createShape(circle, shapeDef: shapeDef)
-                } else {
-                    let clampedCornerRadius = min(cornerRadius, blockSize.width / 2, blockSize.height / 2)
-                    let roundedRadius = meters(fromPoints: clampedCornerRadius)
                     
+                    b2CreateCircleShape(bodyId, &shapeDef, &circle)
+                } else {
+                    let clampedCornerRadius = min(
+                        cornerRadius,
+                        blockSize.width / 2,
+                        blockSize.height / 2
+                    )
+                    
+                    let roundedRadius = meters(fromPoints: clampedCornerRadius)
                     let innerHalfWidth = max(0.001, meters(fromPoints: blockSize.width / 2 - clampedCornerRadius))
                     let innerHalfHeight = max(0.001, meters(fromPoints: blockSize.height / 2 - clampedCornerRadius))
                     
-                    /// Rounded rectangle collision shape
-                    let roundedPolygon = b2MakeRoundedBox(
+                    /// Rounded rectangle collision shape.
+                    /// Box2D rounded boxes are a core box inflated by radius, so subtract the radius to keep the total size true to the texture.
+                    var roundedPolygon = b2MakeRoundedBox(
                         innerHalfWidth,
                         innerHalfHeight,
                         roundedRadius
                     )
                     
-                    body.createShape(roundedPolygon, shapeDef: shapeDef)
+                    b2CreatePolygonShape(bodyId, &shapeDef, &roundedPolygon)
                 }
                 
-                entities.append(Entity(node: node, body: body))
+                entities.append(Entity(node: node, bodyId: bodyId))
             }
         }
     }
@@ -495,17 +524,19 @@ class DraggingScene: SKScene, NavigationCameraDelegate, UIGestureRecognizerDeleg
     }
     
     private func fixedUpdate(_ fixedTimestep: TimeInterval) {
-        /// Move pointer
+        /// Move pointer bodies toward their target transforms.
+        /// b2Body_SetTargetTransform moves by setting velocity, not teleporting.
         for drag in activeDrags.values {
-            drag.pointerEntity.body.setTargetTransform( /// move by setting velocity, not teleport
-                B2Transform(p: drag.targetPosition, q: drag.targetRotation), /// p is position, q is rotation
+            b2Body_SetTargetTransform(
+                drag.pointerEntity.bodyId,
+                b2Transform(p: drag.targetPosition, q: drag.targetRotation), /// p is position, q is rotation
                 Float(fixedTimestep),
                 true /// Wake from sleep
             )
         }
         
         /// Step Box2D with the fixed timestep.
-        b2DWorld.step(Float(fixedTimestep), subSteps: 4)
+        b2World_Step(b2WorldId, Float(fixedTimestep), 4)
     }
     
     override func didApplyConstraints() {
@@ -513,31 +544,38 @@ class DraggingScene: SKScene, NavigationCameraDelegate, UIGestureRecognizerDeleg
     }
     
     override func didFinishUpdate() {
-        /// Retrieve simulation results
+        /// Retrieve simulation results.
         for entity in entities {
             guard let node = entity.node else { continue }
+            guard b2Body_IsValid(entity.bodyId) else { continue }
             
-            let bodyPosition = entity.body.getPosition()
-            let bodyRotation = entity.body.getRotation()
+            let bodyPosition = b2Body_GetPosition(entity.bodyId)
+            let bodyRotation = b2Body_GetRotation(entity.bodyId)
             
             node.position = CGPoint(
                 x: points(fromMeters: bodyPosition.x),
                 y: points(fromMeters: bodyPosition.y)
             )
-            node.zRotation = CGFloat(bodyRotation.angle)
+            
+            node.zRotation = CGFloat(b2Rot_GetAngle(bodyRotation))
         }
         
-        /// Draw dragging joints
+        /// Draw dragging joints.
         for drag in activeDrags.values {
-            let worldPointA = drag.pointerEntity.body.getTransform().transform(
-                drag.joint.localFrameA.p
-            )
+            guard b2Joint_IsValid(drag.jointID) else { continue }
             
-            let draggedBody = B2Body(id: drag.joint.getBodyB())
+            let pointerBodyID = b2Joint_GetBodyA(drag.jointID)
+            let draggedBodyID = b2Joint_GetBodyB(drag.jointID)
             
-            let worldPointB = draggedBody.getTransform().transform(
-                drag.joint.localFrameB.p
-            )
+            let pointerTransform = b2Body_GetTransform(pointerBodyID)
+            let draggedTransform = b2Body_GetTransform(draggedBodyID)
+            
+            let localFrameA = b2Joint_GetLocalFrameA(drag.jointID)
+            let localFrameB = b2Joint_GetLocalFrameB(drag.jointID)
+            
+            /// Joint anchors are body-local, so convert them to world coordinates.
+            let worldPointA = b2TransformPoint(pointerTransform, localFrameA.p)
+            let worldPointB = b2TransformPoint(draggedTransform, localFrameB.p)
             
             let pointA = CGPoint(
                 x: points(fromMeters: worldPointA.x),
@@ -553,7 +591,7 @@ class DraggingScene: SKScene, NavigationCameraDelegate, UIGestureRecognizerDeleg
             path.move(to: pointA)
             path.addLine(to: pointB)
             
-            /// Draw the dragged-body anchor at body B
+            /// Draw the dragged-body anchor at body B.
             path.addEllipse(in: CGRect(
                 x: pointB.x - 8,
                 y: pointB.y - 8,
@@ -565,11 +603,11 @@ class DraggingScene: SKScene, NavigationCameraDelegate, UIGestureRecognizerDeleg
         }
         
         /// Box2D debug draw
-        if debugPhysics {
-            debugRenderer.draw(world: b2DWorld)
-        } else {
-            debugRenderer.clear()
-        }
+//        if debugPhysics {
+//            debugRenderer.draw(world: b2DWorld)
+//        } else {
+//            debugRenderer.clear()
+//        }
     }
     
     // MARK: Touch Began
@@ -584,46 +622,43 @@ class DraggingScene: SKScene, NavigationCameraDelegate, UIGestureRecognizerDeleg
             let scenePosition = touch.location(in: self)
             let touchRadius: CGFloat = 11
             
-            /// Find the dynamic Box2D body under this touch
-            guard let draggedBodyNode = entity(at: scenePosition, touchRadius: touchRadius) else {
+            /// Find the dynamic Box2D body under this touch.
+            guard let draggedEntity = entity(at: scenePosition, touchRadius: touchRadius) else {
                 navCamera.stop()
                 continue
             }
             
-            /// Convert from SpriteKit to Box2D
-            let worldPosition = B2Vec2(
+            /// Convert from SpriteKit points to Box2D meters.
+            let worldPosition = b2Vec2(
                 x: meters(fromPoints: scenePosition.x),
                 y: meters(fromPoints: scenePosition.y)
             )
             
-            /// Store the dragged body orientation
-            let targetRotation = draggedBodyNode.body.getRotation()
+            /// Store the dragged body orientation at the start of the drag.
+            let targetRotation = b2Body_GetRotation(draggedEntity.bodyId)
             
-            /// Create a pointer: kinematic, follow the finger
-            let pointerBodyNode = createPointerBodyNode(
+            /// Create a kinematic pointer body that follows the finger.
+            let pointerEntity = createPointerEntity(
                 touchRadius: touchRadius,
                 position: worldPosition,
                 rotation: targetRotation
             )
             
-            /// Define a motor joint
-            var jointDef = b2MotorJointDef.default()
-            jointDef.base.bodyIdA = pointerBodyNode.body.id
-            jointDef.base.bodyIdB = draggedBodyNode.body.id
+            /// Define a motor joint between the pointer body and the dragged body.
+            var jointDef = b2DefaultMotorJointDef()
+            jointDef.base.bodyIdA = pointerEntity.bodyId
+            jointDef.base.bodyIdB = draggedEntity.bodyId
             
-            /// Box2D joints anchor are expressed in the body local coordinates
-            let pointerAnchor = pointerBodyNode.body.getLocalPoint(worldPosition)
-            let draggedAnchor = draggedBodyNode.body.getLocalPoint(worldPosition)
+            /// Box2D joint anchors are expressed in each body's local coordinates.
+            jointDef.base.localFrameA.p = b2Body_GetLocalPoint(pointerEntity.bodyId, worldPosition)
+            jointDef.base.localFrameB.p = b2Body_GetLocalPoint(draggedEntity.bodyId, worldPosition)
             
-            jointDef.base.localFrameA.p = pointerAnchor
-            jointDef.base.localFrameB.p = draggedAnchor
-            
-            /// Spring/drag tuning
+            /// Spring/drag tuning.
             jointDef.linearHertz = 7.5
             jointDef.linearDampingRatio = 1
             
-            let massData = draggedBodyNode.body.massData
-            let gravityStrength = max(b2DWorld.gravity.length, gravityLength)
+            let massData = b2Body_GetMassData(draggedEntity.bodyId)
+            let gravityStrength = max(b2Length(b2World_GetGravity(b2WorldId)), gravityLength)
             let bodyWeight = max(massData.mass * gravityStrength, 1.0)
             
             jointDef.maxSpringForce = 80 * bodyWeight
@@ -634,8 +669,8 @@ class DraggingScene: SKScene, NavigationCameraDelegate, UIGestureRecognizerDeleg
                 if shouldMaintainAngle {
                     /// Angular spring keeps the dragged body close to its starting rotation.
                     jointDef.angularHertz = 10
-                    jointDef.angularDampingRatio = 1.0
-                    jointDef.maxSpringTorque = 50000.0 * lever * bodyWeight
+                    jointDef.angularDampingRatio = 1
+                    jointDef.maxSpringTorque = 50_000 * lever * bodyWeight
                 } else {
                     /// Angular velocity torque acts like mild spin friction while allowing rotation.
                     jointDef.maxVelocityTorque = 0.25 * lever * bodyWeight
@@ -643,9 +678,9 @@ class DraggingScene: SKScene, NavigationCameraDelegate, UIGestureRecognizerDeleg
                 }
             }
             
-            let joint = b2DWorld.createJoint(jointDef)
+            let jointID = b2CreateMotorJoint(b2WorldId, &jointDef)
             
-            /// Visualize the joint
+            /// Visualize the joint.
             let jointVizNode = SKShapeNode()
             jointVizNode.strokeColor = .black
             jointVizNode.fillColor = .black
@@ -654,10 +689,10 @@ class DraggingScene: SKScene, NavigationCameraDelegate, UIGestureRecognizerDeleg
             jointVizNode.zPosition = 10
             addChild(jointVizNode)
             
-            /// Store drag state
+            /// Store drag state.
             activeDrags[touch] = DragState(
-                pointerEntity: pointerBodyNode,
-                joint: joint,
+                pointerEntity: pointerEntity,
+                jointID: jointID,
                 jointViz: jointVizNode,
                 targetPosition: worldPosition,
                 targetRotation: targetRotation
@@ -674,7 +709,7 @@ class DraggingScene: SKScene, NavigationCameraDelegate, UIGestureRecognizerDeleg
             guard var drag = activeDrags[touch] else { continue }
             
             /// Store intended target
-            drag.targetPosition = B2Vec2(
+            drag.targetPosition = b2Vec2(
                 x: meters(fromPoints: scenePosition.x),
                 y: meters(fromPoints: scenePosition.y)
             )
@@ -695,8 +730,8 @@ class DraggingScene: SKScene, NavigationCameraDelegate, UIGestureRecognizerDeleg
     
     // MARK: Pointer
     
-    private func createPointerBodyNode(touchRadius: CGFloat, position: B2Vec2, rotation: B2Rot) -> Entity {
-        /// Visual pointer
+    private func createPointerEntity(touchRadius: CGFloat, position: b2Vec2, rotation: b2Rot) -> Entity {
+        /// Visual pointer.
         let pointerNode = SKShapeNode(circleOfRadius: touchRadius)
         pointerNode.fillColor = SKColor.systemCyan.withAlphaComponent(0.5)
         pointerNode.strokeColor = .black
@@ -705,28 +740,28 @@ class DraggingScene: SKScene, NavigationCameraDelegate, UIGestureRecognizerDeleg
             x: points(fromMeters: position.x),
             y: points(fromMeters: position.y)
         )
-        pointerNode.zRotation = CGFloat(rotation.angle)
+        pointerNode.zRotation = CGFloat(b2Rot_GetAngle(rotation))
         pointerNode.zPosition = 1000
         addChild(pointerNode)
         
-        /// Pointer body: kinematic target used by the motor joint
-        var bodyDef = b2BodyDef.default()
-        bodyDef.type = .b2KinematicBody
+        /// Pointer body: kinematic target used by the motor joint.
+        var bodyDef = b2DefaultBodyDef()
+        bodyDef.type = b2_kinematicBody
         bodyDef.position = position
         bodyDef.rotation = rotation
         bodyDef.enableSleep = false
         
-        /// No shape is needed, the joint only needs a body
-        let pointerBody = b2DWorld.createBody(bodyDef)
+        /// No shape is needed. The joint only needs a body.
+        let pointerBodyId = b2CreateBody(b2WorldId, &bodyDef)
         
-        let pointerBodyNode = Entity(
+        let pointerEntity = Entity(
             node: pointerNode,
-            body: pointerBody,
+            bodyId: pointerBodyId
         )
         
-        entities.append(pointerBodyNode)
+        entities.append(pointerEntity)
         
-        return pointerBodyNode
+        return pointerEntity
     }
     
     // MARK: End Drag
@@ -735,10 +770,19 @@ class DraggingScene: SKScene, NavigationCameraDelegate, UIGestureRecognizerDeleg
         for (touch, drag) in activeDrags {
             if let touches, touches.contains(touch) == false { continue }
             
-            drag.joint.destroy(wakeAttached: wakeAttached)
+            /// Destroy joint before pointer body. The joint references both bodies.
+            if b2Joint_IsValid(drag.jointID) {
+                b2DestroyJoint(drag.jointID, wakeAttached)
+            }
+            
             drag.jointViz.removeFromParent()
             removeEntity(drag.pointerEntity)
-            entities.removeAll { $0.body.id == drag.pointerEntity.body.id }
+            
+            entities.removeAll { entity in
+                //isSameBodyID(entity.bodyID, drag.pointerEntity.bodyID)
+                entity.bodyId == drag.pointerEntity.bodyId
+            }
+            
             activeDrags.removeValue(forKey: touch)
         }
     }
@@ -748,35 +792,35 @@ class DraggingScene: SKScene, NavigationCameraDelegate, UIGestureRecognizerDeleg
     private func entity(at scenePosition: CGPoint, touchRadius: CGFloat) -> Entity? {
         let touchRadiusMeters = meters(fromPoints: touchRadius)
         
-        let worldPosition = B2Vec2(
+        let worldPosition = b2Vec2(
             x: meters(fromPoints: scenePosition.x),
             y: meters(fromPoints: scenePosition.y)
         )
         
-        var probeCenter = B2Vec2(x: 0, y: 0)
+        var probeCenter = b2Vec2(x: 0, y: 0)
         
         /// The touch probe is a small circle placed at the touch position.
-        let probe = withUnsafePointer(to: &probeCenter) { probeCenterPointer in
+        var probe = withUnsafePointer(to: &probeCenter) { probeCenterPointer in
             b2MakeOffsetProxy(
                 probeCenterPointer,
                 1,
                 touchRadiusMeters,
                 worldPosition,
-                .identity
+                b2Rot_identity
             )
         }
         
         var hitEntities: [Entity] = []
         
         /// Ask Box2D which collision shapes overlap the touch footprint.
-        b2DWorld.overlapShape(probe, filter: .default()) { shape in
-            let bodyId = shape.getBody()
+        b2WorldOverlapShape(b2WorldId, proxy: &probe, filter: b2DefaultQueryFilter()) { shapeID in
+            let bodyID = b2Shape_GetBody(shapeID)
             
-            guard let entity = entities.first(where: { $0.body.id == bodyId }) else {
+            guard let entity = entities.first(where: { $0.bodyId == bodyID }) else {
                 return true
             }
             
-            guard entity.body.type == .b2DynamicBody else {
+            guard b2Body_GetType(entity.bodyId) == b2_dynamicBody else {
                 return true
             }
             

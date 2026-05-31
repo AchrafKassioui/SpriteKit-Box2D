@@ -6,7 +6,7 @@
  
  Achraf Kassioui
  Created 23 May 2026
- Updated 30 May 2026
+ Updated 31 May 2026
  
  */
 import SpriteKit
@@ -77,7 +77,6 @@ class Scene: SKScene, NavigationCameraDelegate, UIGestureRecognizerDelegate {
     /// Box2D
     private static let pointsPerMeter: CGFloat = 150 /// In SpriteKit, 150 points = 1 meter
     private let gravityLength: Float = 10
-    //var b2DWorld = B2World()
     var b2WorldId: b2WorldId = b2_nullWorldId
     
     /// Content
@@ -663,9 +662,7 @@ class Scene: SKScene, NavigationCameraDelegate, UIGestureRecognizerDelegate {
             y: meters(fromPoints: scenePosition.y)
         )
         
-        // TODO: single point? misleading
-        /// The touch probe is a single point at the origin.
-        /// b2MakeOffsetProxy places it at worldPosition with the given radius.
+        /// The touch probe is a circle placed at the touch position.
         var probeCenter = b2Vec2(x: 0, y: 0)
         var probe = withUnsafePointer(to: &probeCenter) { probeCenterPointer in
             b2MakeOffsetProxy(
@@ -681,7 +678,7 @@ class Scene: SKScene, NavigationCameraDelegate, UIGestureRecognizerDelegate {
         
         /// Ask Box2D which collision shapes overlap the touch footprint.
         /// b2WorldOverlapShape is a local helper that bridges the C callback to a Swift closure.
-        b2WorldOverlapShape(b2WorldId, &probe, b2DefaultQueryFilter()) { shapeId in
+        b2WorldOverlapShape(b2WorldId, proxy: &probe, filter: b2DefaultQueryFilter()) { shapeId in
             let bodyId = b2Shape_GetBody(shapeId)
             
             guard let entity = self.indexedEntities[bodyId] else {
@@ -721,7 +718,7 @@ class Scene: SKScene, NavigationCameraDelegate, UIGestureRecognizerDelegate {
  SpriteKit was running slow on iPhone 13 with iOS 26.5.
  I noticed performance dropped when number of nodes was low.
  Made this function to add nodes.
- Results: didn't help. However using sprite nodes instead of shape nodes in presets did help.
+ Results: didn't help. However, using sprite nodes instead of shape nodes in presets helps a bit.
  It's still a bug that affects iPhone 13 (A15 chip). Shapes run well on A17 Pro and M1 Pro.
  
  Updated: 26 May 2026

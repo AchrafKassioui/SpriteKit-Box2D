@@ -6,13 +6,13 @@
  
  Achraf Kassioui
  Created 30 May 2026
- Updated 30 May 2026
+ Updated 31 May 2026
  
  */
 import CoreGraphics
 import box2d
 
-// MARK: C Interop
+// MARK: Wrappers
 /**
  
  Swift version of `b2World_OverlapShape`.
@@ -25,9 +25,9 @@ import box2d
 @discardableResult
 func b2WorldOverlapShape(
     _ worldId: b2WorldId,
-    _ proxy: inout b2ShapeProxy,
-    _ filter: b2QueryFilter,
-    _ callback: (b2ShapeId) -> Bool
+    proxy: inout b2ShapeProxy,
+    filter: b2QueryFilter,
+    callback: (b2ShapeId) -> Bool
 ) -> b2TreeStats {
     typealias Callback = (b2ShapeId) -> Bool
     
@@ -51,5 +51,76 @@ func b2WorldOverlapShape(
                 callbackPointer
             )
         }
+    }
+}
+
+// MARK: Conformance
+/**
+ 
+ Box2D ids are C structs.
+ Swift can use them as values, but not automatically as Dictionary keys or with `==`.
+ 
+ These conformances make Box2D ids work naturally in Swift collections.
+ 
+ */
+extension b2WorldId: @retroactive Equatable {
+    public static func == (lhs: b2WorldId, rhs: b2WorldId) -> Bool {
+        lhs.index1 == rhs.index1 &&
+        lhs.generation == rhs.generation
+    }
+}
+
+extension b2WorldId: @retroactive Hashable {
+    public func hash(into hasher: inout Hasher) {
+        hasher.combine(index1)
+        hasher.combine(generation)
+    }
+}
+
+extension b2BodyId: @retroactive Equatable {
+    public static func == (lhs: b2BodyId, rhs: b2BodyId) -> Bool {
+        lhs.index1 == rhs.index1 &&
+        lhs.world0 == rhs.world0 &&
+        lhs.generation == rhs.generation
+    }
+}
+
+extension b2BodyId: @retroactive Hashable {
+    public func hash(into hasher: inout Hasher) {
+        hasher.combine(index1)
+        hasher.combine(world0)
+        hasher.combine(generation)
+    }
+}
+
+extension b2JointId: @retroactive Equatable {
+    public static func == (lhs: b2JointId, rhs: b2JointId) -> Bool {
+        lhs.index1 == rhs.index1 &&
+        lhs.world0 == rhs.world0 &&
+        lhs.generation == rhs.generation
+    }
+}
+
+extension b2JointId: @retroactive Hashable {
+    public func hash(into hasher: inout Hasher) {
+        hasher.combine(index1)
+        hasher.combine(world0)
+        hasher.combine(generation)
+    }
+}
+
+extension b2ShapeId: @retroactive Equatable {
+    public static func == (lhs: b2ShapeId, rhs: b2ShapeId) -> Bool {
+        lhs.index1 == rhs.index1 &&
+        lhs.world0 == rhs.world0 &&
+        lhs.generation == rhs.generation
+    }
+}
+
+extension b2ShapeId: @retroactive Hashable {
+    public func hash(into hasher: inout Hasher) {
+        hasher.combine(index1)
+        hasher.combine(world0)
+        hasher.combine(generation)
     }
 }
