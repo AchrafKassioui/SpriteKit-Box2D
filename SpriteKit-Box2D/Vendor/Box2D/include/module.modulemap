@@ -4,8 +4,7 @@
 //
 //  Created by Achraf Kassioui on 31/5/2026.
 //
-
-module box2d {
+module Box2D {
     header "box2d/box2d.h"
     export *
 }

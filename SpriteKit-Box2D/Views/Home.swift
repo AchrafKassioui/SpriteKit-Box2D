@@ -4,7 +4,7 @@
  
  Achraf Kassioui
  Created 19 May 2026
- Updated 31 May 2026
+ Updated 1 Jun 2026
  
  */
 import SwiftUI
@@ -13,18 +13,10 @@ import SpriteKit
 // MARK: View
 
 struct Home: View {
+    let uiPadding: CGFloat = 10
+
     @State var scene: SpriteKit_Box2D.Scene = Scene()
-    
-    /// SwiftUI doesn't account for title bar in macOS (?!)
-    private var titleBarHeight: CGFloat {
-#if os(macOS)
-        32
-#elseif targetEnvironment(macCatalyst)
-        32
-#else
-        0
-#endif
-    }
+    @State private var isPresetMenuOpen = false
     
     var body: some View {
         ZStack {
@@ -36,50 +28,45 @@ struct Home: View {
             )
             .ignoresSafeArea()
             .onAppear {
-                Presets.stack(scene)
+                Presets.weldStack(scene)
+            }
+            .onTapGesture {
+                isPresetMenuOpen = false
             }
             
-            GeometryReader { geometry in
-                let edgePadding: CGFloat = 10
-                let topPadding: CGFloat = edgePadding// + titleBarHeight
-                let bottomPadding: CGFloat = edgePadding
-                let leadingPadding: CGFloat = edgePadding
-                let trailingPadding: CGFloat = edgePadding
-                
-                VStack {
-                    HStack {
-                        CameraCapsule(scene: scene)
-                        
-                        Spacer()
-                        
-                        PresetMenu(scene: scene)
-                    }
+            VStack {
+                HStack {
+                    CameraCapsule(scene: scene)
                     
                     Spacer()
                     
-                    HStack {
-                        ToggleButton(
-                            isOn: scene.enableDrag,
-                            onText: "Dragging ON",
-                            offText: "Dragging OFF",
-                            onSystemImage: "hand.draw.fill",
-                            offSystemImage: "hand.raised.fill",
-                            action: {
-                                scene.enableDrag.toggle()
-                                if !scene.enableDrag {
-                                    scene.endDrags(wakeAttached: true)
-                                }
-                            }
-                        )
-                        
-                        Spacer()
-                    }
+                    PresetMenu(scene: scene, isOpen: $isPresetMenuOpen)
                 }
-                .padding(.top, topPadding)
-                .padding(.bottom, bottomPadding)
-                .padding(.leading, leadingPadding)
-                .padding(.trailing, trailingPadding)
+                
+                Spacer()
+                
+                HStack {
+                    ToggleButton(
+                        isOn: scene.enableDrag,
+                        onText: "Dragging ON",
+                        offText: "Dragging OFF",
+                        onSystemImage: "hand.draw.fill",
+                        offSystemImage: "hand.raised.fill",
+                        action: {
+                            scene.enableDrag.toggle()
+                            if !scene.enableDrag {
+                                scene.endDrags(wakeAttached: true)
+                            }
+                        }
+                    )
+                    
+                    Spacer()
+                }
             }
+            .padding(.top, uiPadding)
+            .padding(.bottom, uiPadding)
+            .padding(.leading, uiPadding)
+            .padding(.trailing, uiPadding)
         }
         .background(.black)
     }
@@ -94,63 +81,88 @@ struct Home: View {
 struct PresetMenu: View {
     let scene: SpriteKit_Box2D.Scene
     
+    @Binding var isOpen: Bool
+    
     var body: some View {
-        Menu {
-            Button(action: {
-                Presets.stack(scene)
-            }, label: {
-                Text("Stack")
-            })
-            
-            Button(action: {
-                Presets.pile(scene)
-            }, label: {
-                Text("Pile")
-            })
-            
-            Button(action: {
-                Presets.largePile(scene)
-            }, label: {
-                Text("Large Pile")
-            })
-            
-            Button(action: {
-                Presets.weldStack(scene)
-            }, label: {
-                Text("Welded Blocks")
-            })
-            
-            Divider()
-            
-            Button(action: {
-                Presets.verticalChain(scene)
-            }, label: {
-                Text("Vertical Chain")
-            })
-            
-            Button(action: {
-                Presets.horizontalChain(scene)
-            }, label: {
-                Text("Horizontal Chain")
-            })
-            
-        } label: {
+        Button(action: {
+            isOpen.toggle()
+        }, label: {
             Label("Presets", systemImage: "shippingbox.fill")
-                .lineLimit(1)
                 .frame(height: 40)
                 .padding(.horizontal, 16)
                 .contentShape(Capsule())
                 .background {
                     Capsule()
                         .fill(.ultraThinMaterial)
+                        .shadow(radius: 10, y: 5)
                 }
                 .overlay {
                     Capsule()
                         .stroke(.white.opacity(0.35), lineWidth: 1)
                 }
-        }
+        })
         .buttonStyle(.plain)
-        .shadow(radius: 10, y: 5)
+        .overlay(alignment: .topTrailing) {
+            if isOpen {
+                VStack(alignment: .leading, spacing: 0) {
+                    presetButton("Stack") {
+                        Presets.stack(scene)
+                    }
+                    
+                    presetButton("Pyramid") {
+                        Presets.pyramid(scene)
+                    }
+                    
+                    Divider()
+                    
+                    presetButton("Welded Blocks") {
+                        Presets.weldStack(scene)
+                    }
+                    
+                    presetButton("Vertical Chain") {
+                        Presets.verticalChain(scene)
+                    }
+                    
+                    presetButton("Horizontal Chain") {
+                        Presets.horizontalChain(scene)
+                    }
+                    
+                    Divider()
+                    
+                    presetButton("Huge Pile") {
+                        Presets.bigPile(scene)
+                    }
+                }
+                .padding(.vertical, 8)
+                .frame(width: 190)
+                .background {
+                    RoundedRectangle(cornerRadius: 14)
+                        .fill(.ultraThinMaterial)
+                        .shadow(radius: 10, y: 5)
+                }
+                .overlay {
+                    RoundedRectangle(cornerRadius: 14)
+                        .stroke(.white.opacity(0.35), lineWidth: 1)
+                }
+                .offset(y: 48)
+                .zIndex(10)
+            }
+        }
+    }
+    
+    private func presetButton(_ title: String, action: @escaping () -> Void) -> some View {
+        Button(action: {
+            isOpen = false
+            action()
+        }, label: {
+            Text(title)
+                .lineLimit(1)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .padding(.horizontal, 14)
+                .padding(.vertical, 10)
+                .contentShape(Rectangle())
+        })
+        .buttonStyle(.plain)
     }
 }
 
@@ -165,33 +177,32 @@ enum Presets {
         scene.createStack(columns: 4, rows: 6, startY: -180)
     }
     
-    static func pile(_ scene: SpriteKit_Box2D.Scene) {
+    static func pyramid(_ scene: SpriteKit_Box2D.Scene) {
         scene.removeContent()
         scene.setupBox2D(gravityLength: -10)
         scene.createGround(width: 2000)
-        scene.createPile(baseCount: 5, startY: 100)
+        scene.createPyramid(baseCount: 7, startY: -200)
     }
     
-    static func largePile(_ scene: SpriteKit_Box2D.Scene) {
+    static func bigPile(_ scene: SpriteKit_Box2D.Scene) {
         scene.removeContent()
         scene.setupBox2D(gravityLength: -10)
         scene.createWalls(width: 10000)
-        scene.createLargePile(columns: 10, rows: 500, startY: 500)
-        scene.enableDrag = false
+        scene.createBigPile(columns: 10, rows: 700, startY: 500)
     }
     
     static func weldStack(_ scene: SpriteKit_Box2D.Scene) {
         scene.removeContent()
         scene.setupBox2D(gravityLength: -10)
         scene.createWalls(width: 2000)
-        scene.createWeldJoints(drawJoints: true)
+        scene.createWeldJoints(columns: 4, rows: 4, drawJoints: true)
     }
     
     static func verticalChain(_ scene: SpriteKit_Box2D.Scene) {
         scene.removeContent()
         scene.setupBox2D(gravityLength: -10)
         scene.createGround(width: 2000)
-        scene.createVerticalChain(linkCount: 200, startY: -400, drawJoints: true)
+        scene.createVerticalChain(linkCount: 2000, startY: -400, drawJoints: false)
     }
     
     static func horizontalChain(_ scene: SpriteKit_Box2D.Scene) {
@@ -264,13 +275,13 @@ struct CameraCapsule: View {
         .background {
             Capsule()
                 .fill(.ultraThinMaterial)
+                .shadow(radius: 10, y: 5)
         }
         .overlay {
             Capsule()
                 .stroke(.white.opacity(0.35), lineWidth: 1)
         }
         .buttonStyle(.plain)
-        .shadow(radius: 10, y: 5)
     }
 }
 

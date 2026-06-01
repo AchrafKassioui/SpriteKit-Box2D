@@ -11,7 +11,7 @@
  */
 import SwiftUI
 import SpriteKit
-import box2d
+import Box2D
 
 // MARK: View
 

@@ -1,6 +1,6 @@
 # SpriteKit Box2D
 
-This project integrates Box2D version 3 with SpriteKit.
+This project shows how to integrate Box2D 3.x.x with SpriteKit.
 
 ## Run The App
 
@@ -10,7 +10,156 @@ This project integrates Box2D version 3 with SpriteKit.
 - Select a target device or simulator.
 - For best performance, run the app with the scheme set to Release instead of Debug.
 - Build and run.
-- Enjoy amazing Box2D with lovely SpriteKit.
+- Enjoy the amazing Box2D version 3 with SpriteKit.
+
+## Swift & C
+
+Box2D version 3 is written in C. This projects shows how to use C and Swift in the same Xcode project.
+
+### Pick the C Library
+
+Download Box2D [from the official repository](https://github.com/erincatto/box2d). I cloned the latest commit, `f2086ed` as of May 2026. You can download the latest release instead ([3.1.1](https://github.com/erincatto/box2d/releases/tag/v3.1.1), June 2025). It's up to you to choose which version you wish to work with.
+
+### Copy the Source Code
+
+Create the following folder hierarchy in the Xcode project. By convention, Vendor is used to gather third-party libraries:
+
+```
+SpriteKit-Box2D/  ← app target’s source folder
+  Vendor/
+    Box2D/
+      include/    ← copy files from box2d repo
+      src/        ← copy files from box2d repo
+      LICENSE
+```
+
+<img src="SpriteKit-Box2D/Media/Folder Hierarchy.png" alt="Folder Hierarchy" style="width:50%;" />
+
+Locate the "include" and "src" folders inside the Box2D source code, and copy their content to their respective folders in the Xcode project.
+
+### Create a Module Map
+
+This is the first magic step: create a file called "module.modulemap", and put it inside the "include" folder. Xcode knows how to create .modulemap files: go to File > New > File from Template. You'll find a template for this kind of file:
+
+<img src="SpriteKit-Box2D/Media/Module Map Template.png" alt="Module Map Template" style="width:100%;" />
+
+Add the following code inside that file:
+
+```C
+module box2d {
+    header "box2d/box2d.h"
+    export *
+}
+```
+
+This code is read by Clang, the compiler that handles C, Objective-C, and C++. Swift, C, Objective-C, and C++ are all first class languages on Apple platforms and they can work together in the same Xcode project.
+
+The modulemap file is what will allow you to write `import box2d` inside your Swift files. In fact, you can change the name of the module right there. For example, you can change to `module Box2D` which is more Swift looking:
+
+```C
+module Box2D {
+    header "box2d/box2d.h"
+    export *
+}
+```
+
+### Update Build Settings
+
+Next, we need to tell Xcode and the compiler about these new additions. Go to Project Settings > Targets > YourApp > Build Settings.
+
+<img src="SpriteKit-Box2D/Media/Build Settings.png" alt="Build Settings" style="width:100%;" />
+
+Search for "Module Map File" and add the path to it:
+
+```
+$(SRCROOT)/SpriteKit-Box2D/Vendor/Box2D/include/module.modulemap
+```
+
+<img src="SpriteKit-Box2D/Media/Module Map File.png" alt="Module Map File" style="width:100%;" />
+
+Then search for "Header Search Paths" and add the paths of the library's source code:
+
+```
+$(SRCROOT)/SpriteKit-Box2D/Vendor/Box2D/include
+$(SRCROOT)/SpriteKit-Box2D/Vendor/Box2D/src
+```
+
+<img src="SpriteKit-Box2D/Media/Header Search Paths.png" alt="Header Search Paths" style="width:100%;" />
+
+`$(SRCROOT)` means the folder containing the .xcodeproj file, i.e. the outer folder.
+
+### Import Module
+
+If the module map and the paths were right, we should now be able to import Box2D and directly use is inside a swift file!
+
+```swift
+import SpriteKit
+import Box2D
+
+class MinimalScene: SKScene {
+    
+    /// Init a Box2D world with a null ID.
+    var b2WorldId: b2WorldId = b2_nullWorldId
+    
+	override func sceneDidLoad() {
+        /// Setup scene..
+        
+        /// Create a Box2D world using the C API.
+        var worldDef = b2DefaultWorldDef()
+        worldDef.gravity = b2Vec2(x: 0, y: 0)
+        b2WorldId = b2CreateWorld(&worldDef)
+    }
+    
+    override func update(_ currentTime: TimeInterval) {
+        /// Run Box2D with a fixed timestep.
+        b2World_Step(b2WorldId, 1/60, 4)
+    }
+    
+}
+```
+
+### Wrap C with Swift
+
+We can use C methods directly inside Swift code. But raw C types do not always behave like native Swift types. For example, in order to use a Box2D type as a key in a dictionary, the key must conform to the Swift protocol `Hashable`.
+
+```swift
+/// Does not compile yet
+var indexedEntities: [b2BodyId: SKNode] = [:]
+```
+
+The good news is we can add these conformances:
+
+```swift
+/**
+
+This conformance is valid because a `b2BodyId` is a handle made of `index1`, `world0`, and `generation`. Two body ids are the same handle when those fields match.
+
+*/
+extension b2BodyId: @retroactive Equatable {
+    public static func == (lhs: b2BodyId, rhs: b2BodyId) -> Bool {
+        lhs.index1 == rhs.index1 &&
+        lhs.world0 == rhs.world0 &&
+        lhs.generation == rhs.generation
+    }
+}
+
+extension b2BodyId: @retroactive Hashable {
+    public func hash(into hasher: inout Hasher) {
+        hasher.combine(index1)
+        hasher.combine(world0)
+        hasher.combine(generation)
+    }
+}
+
+/// Now compiles!
+var indexedEntities: [b2BodyId: SKNode] = [:]
+```
+
+Note how we used `extension` directly on a C type and added Swift code to it! If we do enough of that, we will end up with a Swift wrapper around Box2D. In this SpriteKit-Box2D integration, I kept the wrappers to a minimum. It's up to you to extend further according to your needs and coding style.
+
+### Go Further
+
+Mixing Swift with C is a big topic and this project is a first entry to it. The WWDC 2025 session [Safely mix C, C++, and Swift](https://www.youtube.com/watch?v=fFPq_4_LCqo) covers more details and advanced memory safety feature from Swift 6.2.
 
 ## Minimal Setup
 
@@ -147,11 +296,13 @@ A short chain of colliding bodies linked with revolute joints:
 - [Stack with High Restitution](https://www.achrafkassioui.com/images/SpriteKit%20-%20Box2D%20v3%20-%20High%20Restitution.mov) (83MB)
 - [Box2D Explode Effect](https://www.achrafkassioui.com/images/SpriteKit%20-%20Box2D%20v3%20-%20Explode.mov) (113MB)
 
-## Dependencies
+## Links
 
-The project uses Luiz Fernando's Box2D v3 Swift wrapper, [SwiftBox2D](https://github.com/LuizZak/SwiftBox2D). If Xcode does not fetch it automatically, try File -> Packages -> Resolve Package Versions.
+- Erin Catto, [Box2D](https://github.com/erincatto/box2d), GitHub repository.
+- Luiz Fernando, [SwiftBox2D](https://github.com/LuizZak/SwiftBox2D), a Swift wrapper around Box2D. I used it to kickstart this project, then I removed the dependency and included the Box2D code directly, plus minimal Swift conformance and wrappers.
 
 ## References
 
 - Glenn Fiedler, [Fix Your Timestep!](https://gafferongames.com/post/fix_your_timestep/), 2004. Used to setup a fixed update in SpriteKit.
 - Erin Catto, [Determinism](https://box2d.org/posts/2024/08/determinism/). Used to setup the Determinism test scene.
+- [Modules](https://clang.llvm.org/docs/Modules.html), Clang documentation.

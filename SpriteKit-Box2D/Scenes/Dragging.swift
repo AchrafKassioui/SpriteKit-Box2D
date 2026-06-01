@@ -23,7 +23,7 @@
  */
 import SpriteKit
 import SwiftUI
-import box2d
+import Box2D
 import Observation
 
 // MARK: View

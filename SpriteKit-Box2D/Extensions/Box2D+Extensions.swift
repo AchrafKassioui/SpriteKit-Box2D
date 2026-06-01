@@ -10,7 +10,7 @@
  
  */
 import CoreGraphics
-import box2d
+import Box2D
 
 // MARK: Wrappers
 /**

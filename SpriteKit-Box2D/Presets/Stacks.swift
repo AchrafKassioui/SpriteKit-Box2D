@@ -10,7 +10,7 @@
  
  */
 import SpriteKit
-import box2d
+import Box2D
 
 extension Scene {
     
@@ -41,9 +41,9 @@ extension Scene {
         }
     }
     
-    // MARK: Pile
+    // MARK: Pyramid
     
-    func createPile(baseCount: Int, startY: CGFloat) {
+    func createPyramid(baseCount: Int, startY: CGFloat) {
         let cellSize: CGFloat = 52
         let blockSize = CGSize(width: 50, height: 50)
         
@@ -74,7 +74,7 @@ extension Scene {
                 createBlock(
                     size: blockSize,
                     position: position,
-                    rotation: rotation
+                    rotation: 0
                 )
             }
         }
@@ -141,7 +141,7 @@ extension Scene {
 
 extension Scene {
     
-    func createLargePile(
+    func createBigPile(
         columns: Int,
         rows: Int,
         startY: CGFloat
@@ -256,9 +256,7 @@ extension Scene {
 
 extension Scene {
     
-    func createWeldJoints(drawJoints: Bool) {
-        let columns = 4
-        let rows = 4
+    func createWeldJoints(columns: Int, rows: Int, drawJoints: Bool) {
         let cellSize: CGFloat = 60
         let blockSize = CGSize(width: 50, height: 50)
         let cornerRadius: CGFloat = 9
@@ -379,7 +377,8 @@ extension Scene {
                             drawsAnchorLine: false,
                             drawsAnchorPoints: false,
                             drawsBodyToAnchorLines: true,
-                            drawsFrames: false
+                            drawsFrames: false,
+                            zPosition: ZPosition.background
                         )
                     }
                 }
@@ -416,7 +415,8 @@ extension Scene {
                             drawsAnchorLine: false,
                             drawsAnchorPoints: false,
                             drawsBodyToAnchorLines: true,
-                            drawsFrames: false
+                            drawsFrames: false,
+                            zPosition: ZPosition.background
                         )
                     }
                 }

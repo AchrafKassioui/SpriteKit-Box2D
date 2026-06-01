@@ -10,7 +10,7 @@
  
  */
 import SpriteKit
-import box2d
+import Box2D
 
 extension Scene {
     
@@ -115,7 +115,8 @@ extension Scene {
                     drawsAnchorLine: true,
                     drawsAnchorPoints: true,
                     drawsBodyToAnchorLines: false,
-                    drawsFrames: false
+                    drawsFrames: false,
+                    zPosition: ZPosition.viz
                 )
             }
         }
@@ -236,7 +237,8 @@ extension Scene {
                     drawsAnchorLine: true,
                     drawsAnchorPoints: true,
                     drawsBodyToAnchorLines: false,
-                    drawsFrames: false
+                    drawsFrames: false,
+                    zPosition: ZPosition.background
                 )
             }
         }

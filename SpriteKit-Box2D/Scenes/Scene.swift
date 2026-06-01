@@ -10,7 +10,7 @@
  
  */
 import SpriteKit
-import box2d
+import Box2D
 
 // MARK: Data
 
@@ -159,7 +159,7 @@ class Scene: SKScene, NavigationCameraDelegate, UIGestureRecognizerDelegate {
     
     func cameraDidScale(to scale: CGPoint) {
         /// Scale is inverse zoom
-        cameraZoomPercent = Int((1 / scale.x * 100).rounded())
+        //cameraZoomPercent = Int((1 / scale.x * 100).rounded())
     }
     
     func gestureRecognizer(_ gestureRecognizer: UIGestureRecognizer, shouldRecognizeSimultaneouslyWith otherGestureRecognizer: UIGestureRecognizer) -> Bool {
@@ -199,7 +199,8 @@ class Scene: SKScene, NavigationCameraDelegate, UIGestureRecognizerDelegate {
         drawsAnchorLine: Bool,
         drawsAnchorPoints: Bool,
         drawsBodyToAnchorLines: Bool,
-        drawsFrames: Bool
+        drawsFrames: Bool,
+        zPosition: CGFloat
     ) {
         /// SpriteKit node used to draw truthful joint geometry.
         let node = SKShapeNode()
@@ -207,7 +208,7 @@ class Scene: SKScene, NavigationCameraDelegate, UIGestureRecognizerDelegate {
         node.fillColor = .black
         node.lineWidth = 3
         node.lineCap = .round
-        node.zPosition = ZPosition.viz
+        node.zPosition = zPosition
         contentParent.addChild(node)
         
         visualizedJoints.append(VisualizedJoint(
@@ -556,7 +557,8 @@ class Scene: SKScene, NavigationCameraDelegate, UIGestureRecognizerDelegate {
                 drawsAnchorLine: true,
                 drawsAnchorPoints: true,
                 drawsBodyToAnchorLines: true,
-                drawsFrames: false
+                drawsFrames: false,
+                zPosition: ZPosition.UI
             )
         }
     }
@@ -593,17 +595,23 @@ class Scene: SKScene, NavigationCameraDelegate, UIGestureRecognizerDelegate {
     
     private func createPointerEntity(touchRadius: CGFloat, position: b2Vec2, rotation: b2Rot) -> Entity {
         /// Visual pointer
-        let pointerNode = SKShapeNode(circleOfRadius: touchRadius)
-        pointerNode.fillColor = SKColor.systemCyan.withAlphaComponent(0.5)
-        pointerNode.strokeColor = .black
-        pointerNode.lineWidth = 3
+        let texture = ResourceCache.texture(
+            isRectangle: false,
+            width: touchRadius*2,
+            height: touchRadius*2,
+            cornerRadius: 0
+        )
+        let pointerNode = SKSpriteNode(texture: texture)
+        pointerNode.colorBlendFactor = 1
+        pointerNode.color = .systemCyan.withAlphaComponent(0.5)
+
         pointerNode.position = CGPoint(
             x: points(fromMeters: position.x),
             y: points(fromMeters: position.y)
         )
         pointerNode.zRotation = CGFloat(b2Rot_GetAngle(rotation))
         pointerNode.zPosition = ZPosition.UI
-        addChild(pointerNode)
+        contentParent.addChild(pointerNode)
         
         /// Pointer body: kinematic target used by the motor joint
         var bodyDef = b2DefaultBodyDef()
