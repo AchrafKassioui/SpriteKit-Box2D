@@ -80,7 +80,7 @@ class MyScene: SKScene {
 
     private let fixedTimestep: TimeInterval = 1 / 60
     private var lastUpdateTime: TimeInterval?
-    private var accumulatedTime: TimeInterval = 0
+    private var accumulatedTime: TimeInterval = 0 /// The accumulator
 
     override func update(_ currentTime: TimeInterval) {
         /// Calculate delta time
