@@ -179,7 +179,7 @@ Box2D is deterministic, provided:
 - Bodies are created in the same order.
 - The same initial positions, rotations, velocities, and forces / impulses are applied.
 
-Creation order is part of the simulation input. It matters.
+Creation order is important and part of the simulation input.
 
 ### Creation Order
 
