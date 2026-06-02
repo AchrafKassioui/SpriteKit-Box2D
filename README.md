@@ -45,7 +45,7 @@ Box2D version 3 is written in C. This projects shows how to use C and Swift in t
 
 ## Minimal Setup
 
-To run Box2D with SpriteKit, a [minimal scene](Scenes/MinimalSetup.swift) can be structured as follows:
+To run Box2D with SpriteKit, a [minimal scene](SpriteKit-Box2D/Scenes/MinimalSetup.swift) can be structured as follows:
 
 - Create a Box2D world. In SpriteKit, the equivalent was SKPhysicsWorld, which is automatically created with every scene.
 - Create SpriteKit visual nodes. SpriteKit will handle rendering.
@@ -163,7 +163,7 @@ Box2D determinism is truly remarkable. Given identical inputs, Box2D produces bi
 
 <img src="SpriteKit-Box2D/Media/Determinism-1.png" alt="Determinism-1" style="width:50%;" />
 
-To explore determinism, I set up [`DeterminismScene`](Scenes/Determinism.swift) such as:
+To explore determinism, I set up [`DeterminismScene`](SpriteKit-Box2D/Scenes/Determinism.swift) such as:
 
 - A new Box2D world is created each time content is reset.
 - The same bodies are recreated in the same order.
