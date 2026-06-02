@@ -94,10 +94,10 @@ class DeterminismScene: SKScene {
     private var b2WorldId: b2WorldId = b2_nullWorldId
     
     /// How many SpriteKit screen points is one meter in the simulation
-    static let pointsPerMeter: CGFloat = 300
+    static let pointsPerMeter: CGFloat = 150
     
     /// Timing
-    private let fixedTimestep: TimeInterval = 1 / 120
+    private let fixedTimestep: TimeInterval = 1 / 60
     private var timeScale: CGFloat = 1 /// 1 = normal speed, 0.5 = slow motion, 2 = fast forward.
     private var lastUpdateTime: TimeInterval?
     private var accumulatedTime: TimeInterval = 0

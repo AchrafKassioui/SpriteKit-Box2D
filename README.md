@@ -156,7 +156,55 @@ In conclusion, time scale changes how fast fixed steps are consumed in real time
 
 ## Determinism
 
-[TBD]
+Box2D determinism is truly remarkable. Given identical inputs, Box2D produces bit-for-bit identical results across multiple runs. This makes rollback, replay, and reproducible simulation possible.
+
+<img src="SpriteKit-Box2D/Media/Determinism-1.png" alt="Determinism-1" style="width:50%;" />
+
+### Setup
+
+To explore determinism, I wrote `DeterminismScene`:
+
+- A new Box2D world is created each time content is reset.
+- The same bodies are recreated in the same order.
+- The simulation runs for a fixed number of physics steps, then pauses.
+- After that fixed step count, a hash of all body transforms is generated.
+- Identical hash between runs = identical transform state = the simulation is deterministic.
+
+### Findings
+
+Box2D is deterministic, provided:
+
+- A new physics world is created for each replay or reset.
+- The same world settings, fixed timestep, and substep count are used.
+- Bodies are created in the same order.
+- The same initial positions, rotations, velocities, and forces / impulses are applied.
+
+Creation order is part of the simulation input. It matters.
+
+### Creation Order
+
+A transient body test explores the creation order question further: creating and destroying an extra body during the simulation to see if its presence would affect the outcome of the remaining bodies.
+
+Test A:
+
+- A body is created and destroyed after all boxes have been created.
+- I compare the hash of the boxes with and without that transient body.
+- I get the same hash.
+
+Test B:
+
+- A body is created after the ground and before the boxes, configured to not collide with them.
+- I compare the hash of the boxes with and without that transient body.
+- I get the same hash.
+
+Test C:
+
+- A body is created inside the box creation loop, between two box bodies, at different insertion indexes.
+- The transient body is configured to not collide with the boxes.
+- I compare the hash of the boxes with and without that transient body.
+- I get the same hash.
+
+It seems that if a body does not collide with the rest of the simulation, its creation order does not affect the outcome of that simulation
 
 ## References
 
