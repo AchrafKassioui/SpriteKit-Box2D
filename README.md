@@ -163,7 +163,7 @@ Box2D determinism is truly remarkable. Given identical inputs, Box2D produces bi
 
 <img src="SpriteKit-Box2D/Media/Determinism-1.png" alt="Determinism-1" style="width:50%;" />
 
-To explore determinism, I set up [`DeterminismScene`](SpriteKit-Box2D/Scenes/Determinism.swift) such as:
+To explore determinism, I set up [a test scene](SpriteKit-Box2D/Scenes/Determinism.swift) such as:
 
 - A new Box2D world is created each time content is reset.
 - The same bodies are recreated in the same order.
