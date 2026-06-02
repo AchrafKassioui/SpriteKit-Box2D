@@ -8,8 +8,6 @@
 
 /* Begin PBXBuildFile section */
 		DE0FB5002FC096A2008D6DFE /* README.md in Resources */ = {isa = PBXBuildFile; fileRef = DE0FB4FF2FC096A2008D6DFE /* README.md */; };
-		DE8D8D3E2FCF3866001D1AB3 /* LICENSE in Resources */ = {isa = PBXBuildFile; fileRef = DE8D8D3D2FCF3866001D1AB3 /* LICENSE */; };
-		DE8D8D422FCF39D0001D1AB3 /* NOTICE in Resources */ = {isa = PBXBuildFile; fileRef = DE8D8D412FCF39D0001D1AB3 /* NOTICE */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -24,6 +22,7 @@
 			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
 			membershipExceptions = (
 				Info.plist,
+				Vendor/Box2D/LICENSE,
 			);
 			target = DEFE8FB52FBCD1C30018DF82 /* SpriteKit-Box2D */;
 		};
@@ -136,8 +135,6 @@
 			isa = PBXResourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
-				DE8D8D422FCF39D0001D1AB3 /* NOTICE in Resources */,
-				DE8D8D3E2FCF3866001D1AB3 /* LICENSE in Resources */,
 				DE0FB5002FC096A2008D6DFE /* README.md in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
