@@ -32,7 +32,7 @@
  - I get the same hash.
  
  Test B:
- - A body is created after he ground and before the boxes.
+ - A body is created after the ground and before the boxes.
  - The transient body is configured to not collide with the boxes.
  - I compare the hash of the boxes with and without that transient body.
  - I get the same hash.
@@ -94,10 +94,10 @@ class DeterminismScene: SKScene {
     private var b2WorldId: b2WorldId = b2_nullWorldId
     
     /// How many SpriteKit screen points is one meter in the simulation
-    static let pointsPerMeter: CGFloat = 150
+    static let pointsPerMeter: CGFloat = 300
     
     /// Timing
-    private let fixedTimestep: TimeInterval = 1 / 60
+    private let fixedTimestep: TimeInterval = 1 / 120
     private var timeScale: CGFloat = 1 /// 1 = normal speed, 0.5 = slow motion, 2 = fast forward.
     private var lastUpdateTime: TimeInterval?
     private var accumulatedTime: TimeInterval = 0

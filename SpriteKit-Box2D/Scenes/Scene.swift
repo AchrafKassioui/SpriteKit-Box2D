@@ -2,7 +2,7 @@
  
  # Scene
  
- Main SpriteKit scene where presets are loaded.
+ The main SpriteKit scene where presets are loaded.
  
  Achraf Kassioui
  Created 23 May 2026
@@ -118,7 +118,7 @@ class Scene: SKScene, NavigationCameraDelegate, UIGestureRecognizerDelegate {
     
     // MARK: Box2D World
     
-    func setupBox2D(gravityLength: Float) {
+    func setupBox2D(gravityY: Float) {
         /// Destroy existing world if one is already running
         if b2World_IsValid(b2WorldId) {
             b2DestroyWorld(b2WorldId)
@@ -126,7 +126,7 @@ class Scene: SKScene, NavigationCameraDelegate, UIGestureRecognizerDelegate {
         }
         
         var worldDef = b2DefaultWorldDef()
-        worldDef.gravity = b2Vec2(x: 0, y: gravityLength)
+        worldDef.gravity = b2Vec2(x: 0, y: gravityY)
         worldDef.restitutionThreshold = 0
         b2WorldId = b2CreateWorld(&worldDef)
     }
@@ -159,7 +159,7 @@ class Scene: SKScene, NavigationCameraDelegate, UIGestureRecognizerDelegate {
     
     func cameraDidScale(to scale: CGPoint) {
         /// Scale is inverse zoom
-        //cameraZoomPercent = Int((1 / scale.x * 100).rounded())
+        cameraZoomPercent = Int((1 / scale.x * 100).rounded())
     }
     
     func gestureRecognizer(_ gestureRecognizer: UIGestureRecognizer, shouldRecognizeSimultaneouslyWith otherGestureRecognizer: UIGestureRecognizer) -> Bool {
@@ -414,7 +414,7 @@ class Scene: SKScene, NavigationCameraDelegate, UIGestureRecognizerDelegate {
     
     private func syncRendering() {
         /// Get bodies that moved this step.
-        /// b2World_GetBodyEvents returns a struct with a C array pointer and a count.
+        /// `b2World_GetBodyEvents` returns a struct with a C array pointer and a count.
         /// The data is transient: do not store a reference to it.
         let bodyEvents = b2World_GetBodyEvents(b2WorldId)
         

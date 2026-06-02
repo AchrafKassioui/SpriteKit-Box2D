@@ -8,7 +8,7 @@
  
  ## Todo
  
- Cache must be capped.
+ - Cache must be capped.
  
  Achraf Kassioui
  Created 19 May 2026

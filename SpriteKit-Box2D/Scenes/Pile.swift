@@ -2,7 +2,8 @@
  
  # Pile Of Blocks
  
- Pile test.
+ Pile performance test.
+ Increase the number of columns and rows in createBlocks, and run in release build.
  
  Achraf Kassioui
  Created 19 May 2026
@@ -88,7 +89,6 @@ class PileOfBlocksScene: SKScene {
     
     override func didMove(to view: SKView) {
         view.contentMode = .center
-        view.contentScaleFactor = 1
         size = view.bounds.size
         backgroundColor = .darkGray
         scaleMode = .resizeFill
@@ -324,8 +324,8 @@ class PileOfBlocksScene: SKScene {
      
      */
     private func createBlocks(parent: SKNode) {
-        let columns = 100
-        let rows = 100
+        let columns = 10
+        let rows = 10
         let cellSize: CGFloat = 100
         let blockSizes: [CGFloat] = [15, 30, 60, 75, 100]
         let cornerRadius: CGFloat = 9

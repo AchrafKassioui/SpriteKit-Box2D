@@ -417,7 +417,7 @@ class DraggingScene: SKScene, NavigationCameraDelegate, UIGestureRecognizerDeleg
                 let blockY = groundTopY + gapAboveGround + (CGFloat(row) + 0.5) * cellSize
                 let position = CGPoint(x: blockX, y: blockY)
                 
-                let isCircle = true
+                let isCircle = Bool.random()
                 
                 /// SpriteKit node
                 let texture = ResourceCache.texture(

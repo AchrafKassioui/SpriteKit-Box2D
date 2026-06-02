@@ -2,7 +2,7 @@
  
  # Minimal Setup
  
- Minimal scene to run Box2D 3.x.x in C along SpriteKit in Swift.
+ Minimal scene to run Box2D 3.x.x with SpriteKit.
  
  Achraf Kassioui
  Created 19 May 2026

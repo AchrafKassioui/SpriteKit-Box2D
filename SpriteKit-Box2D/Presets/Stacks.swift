@@ -74,7 +74,7 @@ extension Scene {
                 createBlock(
                     size: blockSize,
                     position: position,
-                    rotation: 0
+                    rotation: rotation
                 )
             }
         }
@@ -137,7 +137,7 @@ extension Scene {
     
 }
 
-// MARK: Large Pile
+// MARK: Big Pile
 
 extension Scene {
     
@@ -178,12 +178,16 @@ extension Scene {
                 /// Deterministic color variation.
                 let color = colors[blockIndex % colors.count]
                 
-                /// Deterministic small offsets, replacing CGFloat.random().
-                /// This keeps the pile imperfect without making the preset random.
-                let horizontalOffsetPattern = CGFloat((blockIndex % 5) - 2)
-                let verticalOffsetPattern = CGFloat(((blockIndex / 5) % 5) - 2)
-                let xOffset = horizontalOffsetPattern * cellSize * 0.025
-                let yOffset = verticalOffsetPattern * cellSize * 0.025
+                /// Deterministic irregular grid offset.
+                /// No random numbers: same inputs create the same pile every time.
+                /// The row drift prevents tall vertical columns from lining up perfectly.
+                /// The cell wobble adds small local variation without making the pile chaotic.
+                let rowDrift = CGFloat(((row * 37) % 9) - 4) * 1.4
+                let columnWobble = CGFloat(((column * 17 + row * 11) % 7) - 3) * 0.9
+                let verticalWobble = CGFloat(((row * 19 + column * 23) % 5) - 2) * 0.8
+                
+                let xOffset = rowDrift + columnWobble
+                let yOffset = verticalWobble
                 
                 let position = CGPoint(
                     x: originX + CGFloat(column) * cellSize + xOffset,

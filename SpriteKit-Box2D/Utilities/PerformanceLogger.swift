@@ -1,9 +1,12 @@
-//
-//  PerformanceLogger.swift
-//  SpriteKit-Box2D
-//
-//  Created by Achraf Kassioui on 19/5/2026.
-//
+/**
+ 
+ # Performance Logger
+ 
+ Achraf Kassioui
+ Created 19 May 2026
+ Updated 19 May 2026
+ 
+ */
 import SpriteKit
 
 struct PhysicsStepProfiler {

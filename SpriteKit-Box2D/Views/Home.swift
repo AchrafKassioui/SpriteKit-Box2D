@@ -129,7 +129,7 @@ struct PresetMenu: View {
                     
                     Divider()
                     
-                    presetButton("Huge Pile") {
+                    presetButton("Big Pile") {
                         Presets.bigPile(scene)
                     }
                 }
@@ -167,47 +167,52 @@ struct PresetMenu: View {
 }
 
 // MARK: Presets
-
+/**
+ 
+ Tweak the values of the presets here.
+ Or navigate to the factory functions and change them directly.
+ 
+ */
 enum Presets {
     
     static func stack(_ scene: SpriteKit_Box2D.Scene) {
         scene.removeContent()
-        scene.setupBox2D(gravityLength: -10)
+        scene.setupBox2D(gravityY: -10)
         scene.createGround(width: 2000)
         scene.createStack(columns: 4, rows: 6, startY: -180)
     }
     
     static func pyramid(_ scene: SpriteKit_Box2D.Scene) {
         scene.removeContent()
-        scene.setupBox2D(gravityLength: -10)
+        scene.setupBox2D(gravityY: -10)
         scene.createGround(width: 2000)
         scene.createPyramid(baseCount: 7, startY: -200)
     }
     
     static func bigPile(_ scene: SpriteKit_Box2D.Scene) {
         scene.removeContent()
-        scene.setupBox2D(gravityLength: -10)
+        scene.setupBox2D(gravityY: -10)
         scene.createWalls(width: 10000)
         scene.createBigPile(columns: 10, rows: 700, startY: 500)
     }
     
     static func weldStack(_ scene: SpriteKit_Box2D.Scene) {
         scene.removeContent()
-        scene.setupBox2D(gravityLength: -10)
+        scene.setupBox2D(gravityY: -10)
         scene.createWalls(width: 2000)
         scene.createWeldJoints(columns: 4, rows: 4, drawJoints: true)
     }
     
     static func verticalChain(_ scene: SpriteKit_Box2D.Scene) {
         scene.removeContent()
-        scene.setupBox2D(gravityLength: -10)
+        scene.setupBox2D(gravityY: -10)
         scene.createGround(width: 2000)
-        scene.createVerticalChain(linkCount: 2000, startY: -400, drawJoints: false)
+        scene.createVerticalChain(linkCount: 1000, startY: -400, drawJoints: false)
     }
     
     static func horizontalChain(_ scene: SpriteKit_Box2D.Scene) {
         scene.removeContent()
-        scene.setupBox2D(gravityLength: -10)
+        scene.setupBox2D(gravityY: -10)
         scene.createWalls(width: 1000)
         scene.createHorizontalChain(links: 10, linksShouldCollideWithEachOther: true, drawJoints: true)
     }
@@ -312,7 +317,7 @@ struct ToggleButton: View {
             .foregroundStyle(isOn ? .white : .primary)
             .frame(minWidth: 32, minHeight: 40)
             .padding(.horizontal, 16)
-            //            .padding(.vertical, 10)
+            //.padding(.vertical, 10)
             .background {
                 if isOn {
                     Capsule()
