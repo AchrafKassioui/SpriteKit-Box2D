@@ -6,6 +6,8 @@ This project shows how to integrate Box2D 3.x.x with SpriteKit.
 
 ## Videos
 
+- [Big Pile](https://www.achrafkassioui.com/images/SpriteKit%20-%20Box2D%20v3%20-%20Big%20Pile.mov) (40MB)
+- [Vertical Chain](https://www.achrafkassioui.com/images/SpriteKit%20-%20Box2D%20v3%20-%20Vertical%20Chain.mov) (30MB)
 - [What Do You See](https://www.achrafkassioui.com/images/SpriteKit%20-%20Box2D%20v3%20-%20What%20Do%20You%20See.mov) (75MB)
 - [Falling Chain - 2](https://www.achrafkassioui.com/images/SpriteKit%20-%20Box2D%20v3%20-%20Falling%20Chain%20-%202.mov) (43MB)
 - [Falling Chain - 1](https://www.achrafkassioui.com/images/SpriteKit%20-%20Box2D%20v3%20-%20Falling%20Chain%20-%201.mov) (14MB)
