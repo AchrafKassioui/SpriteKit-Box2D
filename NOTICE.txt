@@ -1,0 +1,5 @@
+SpriteKit-Box2D
+Copyright 2026 Achraf Kassioui
+
+This project was created by Achraf Kassioui.
+Project page: https://github.com/AchrafKassioui/SpriteKit-Box2D

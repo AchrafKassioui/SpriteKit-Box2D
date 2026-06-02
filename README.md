@@ -215,3 +215,10 @@ It seems that if a body was created but did not collide with the rest of the sim
 - Erin Catto, [Determinism](https://box2d.org/posts/2024/08/determinism/). Used to setup the Determinism test scene.
 - [Modules](https://clang.llvm.org/docs/Modules.html), Clang documentation.
 - Luiz Fernando, [SwiftBox2D](https://github.com/LuizZak/SwiftBox2D), a Swift wrapper around Box2D. I used it to kickstart this project, then I removed the dependency and included the Box2D code directly, plus some minimal Swift conformance and wrappers. Thanks Luiz for the kickstart.
+
+## License
+
+This project is licensed under the Apache License 2.0.
+
+If this project helps your work, attribution or a link back is appreciated:
+https://github.com/AchrafKassioui/SpriteKit-Box2D
