@@ -115,9 +115,13 @@ struct PresetMenu: View {
                     
                     Divider()
                     
-                    presetButton("Welded Blocks") {
+                    presetButton("Welded Stack") {
                         Presets.weldStack(scene)
                     }
+                    
+                    presetButton("Tall Weld Stack", action: {
+                        Presets.tallWeldStack(scene)
+                    })
                     
                     presetButton("Vertical Chain") {
                         Presets.verticalChain(scene)
@@ -201,6 +205,13 @@ enum Presets {
         scene.setupBox2D(gravityY: -10)
         scene.createWalls(width: 2000)
         scene.createWeldJoints(columns: 4, rows: 4, drawJoints: true)
+    }
+    
+    static func tallWeldStack(_ scene: SpriteKit_Box2D.Scene) {
+        scene.removeContent()
+        scene.setupBox2D(gravityY: -10)
+        scene.createWalls(width: 2000)
+        scene.createWeldJoints(columns: 4, rows: 500, drawJoints: false)
     }
     
     static func verticalChain(_ scene: SpriteKit_Box2D.Scene) {

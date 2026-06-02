@@ -6,6 +6,7 @@ This project shows how to integrate Box2D 3.x.x with SpriteKit.
 
 ## Videos
 
+- [What Do You See](https://www.achrafkassioui.com/images/SpriteKit%20-%20Box2D%20v3%20-%20What%20Do%20You%20See.mov) (75MB)
 - [Falling Chain - 2](https://www.achrafkassioui.com/images/SpriteKit%20-%20Box2D%20v3%20-%20Falling%20Chain%20-%202.mov) (43MB)
 - [Falling Chain - 1](https://www.achrafkassioui.com/images/SpriteKit%20-%20Box2D%20v3%20-%20Falling%20Chain%20-%201.mov) (14MB)
 - [Long Chain with Revolute Joint - With Self Collision](https://www.achrafkassioui.com/images/SpriteKit%20-%20Box2D%20v3%20-%20Chain%20Revolute%20With%20Collision.mov) (263MB)
@@ -205,7 +206,7 @@ Test C:
 - I compare the hash of the boxes with and without that transient body.
 - I get the same hash.
 
-It seems that if a body does not collide with the rest of the simulation, its creation order does not affect the outcome of that simulation
+It seems that if a body does not collide with the rest of the simulation, its creation order does not affect the outcome of that simulation.
 
 ## References
 
