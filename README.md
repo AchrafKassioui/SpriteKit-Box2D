@@ -206,7 +206,7 @@ Test C:
 - I compare the hash of the boxes with and without that transient body.
 - I get the same hash.
 
-It seems that if a body does not collide with the rest of the simulation, its creation order does not affect the outcome of that simulation.
+It seems that if a body was created but did not collide with the rest of the simulation, its creation order did not affect the outcome of the other bodies.
 
 ## References
 
