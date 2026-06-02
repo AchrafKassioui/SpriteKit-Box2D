@@ -37,22 +37,24 @@ static func pyramid(_ scene: SpriteKit_Box2D.Scene) {
 }
 ```
 
+Or navigate to the factory functions and change them directly.
+
 ## Swift & C
 
 Box2D version 3 is written in C. This projects shows how to use C and Swift in the same Xcode project. See [this tutorial on how to mix Swift with C](https://github.com/AchrafKassioui/Learning-iOS-Dev#swift--c).
 
 ## Minimal Setup
 
-To run Box2D with SpriteKit, a scene can be structured as follows:
+To run Box2D with SpriteKit, a [minimal scene](Scenes/MinimalSetup.swift) can be structured as follows:
 
-- Create a Box2D world.
+- Create a Box2D world. In SpriteKit, the equivalent was SKPhysicsWorld, which is automatically created with every scene.
 - Create SpriteKit visual nodes. SpriteKit will handle rendering.
 - For each visual node, create a Box2D body with a collision shape that represents it in the simulation.
 - Link each SpriteKit node to its Box2D body. For example, create an `Entity` struct that references both, then store entities in a data structure.
 - For each frame, step the Box2D simulation with a fixed timestep, typically 1/60 second.
 - Before SpriteKit renders the frame, get the simulation result by applying Box2D transforms to SpriteKit nodes.
 
-For a minimal setup, stepping Box2D directly from SpriteKit `update(_:)` is enough. For a production app, use a fixed-step accumulator so Box2D receives the same timestep even if the rendering engine draws at 60 fps, 120 fps, or with occasional frame drops.
+For a minimal setup, stepping Box2D directly from SpriteKit `update(_:)` is enough. For a production app, use a fixed-step accumulator so Box2D updates steadily even if the rendering engine draws at 60 fps, 120 fps, or with occasional frame drops.
 
 ## Update and Fixed Update
 
@@ -62,7 +64,7 @@ Usually, the goal of the simulation is to stay in sync with real time. 3 seconds
 
 If we pass the same timestep regardless of rendering speed, we may get slow/fast physics motion depending on update speed. If we pass a variable timestep to the physics engine, we won't get similar results, because a physics solver doesn't produce the same outcome from different increments of time.
 
-We need a fixed update. A fixed update is a function that advances the physics engine using a stable timestep. A common way to implement it is with the accumulator pattern, documented in Glenn Fiedler's famous [Fix Your Timestep!](https://gafferongames.com/post/fix_your_timestep/) post. It works like this:
+We need a fixed update. A fixed update is a function that keeps simulation time aligned with real-time. A common way to implement it is with the accumulator pattern, documented in Glenn Fiedler's classic [Fix Your Timestep!](https://gafferongames.com/post/fix_your_timestep/) post. It works like this:
 
 - Each render update, calculate how much real time passed since the previous update.
 - Add that delta time to an accumulator.
@@ -71,7 +73,7 @@ We need a fixed update. A fixed update is a function that advances the physics e
 - If the accumulator is still greater than or equal to the fixed timestep, run another fixed update.
 - If the accumulator is smaller than the fixed timestep, stop and let the render update continue.
 
-With this pattern, the rendering engine may provide variable time, but the accumulator converts it into fixed physics steps.
+With this pattern, the rendering engine may provide variable time, but the accumulator converts it into stable ticks.
 
 In SpriteKit, the implementation looks like this:
 
@@ -99,7 +101,7 @@ class MyScene: SKScene {
         
         /// Check if enough real time has passed to run fixed update
         while accumulatedTime >= fixedTimestep {
-            /// Run code on fixed time steps
+            /// Run code on fixed ticks
             fixedUpdate(fixedTimestep)
             accumulatedTime -= fixedTimestep
         }
@@ -118,6 +120,7 @@ Notice that:
 - SpriteKit's `update(_:)` passes the current time, not delta time, so we calculate delta time ourselves.
 - Per-frame code can run before or after the fixed update. Choose the order that matches your app.
 - Box2D should receive the same fixed timestep each step.
+- Be careful of the spiral of death: if the app gets too slow, the accumulator grows faster than the app can empty it. Production code would cap the delta time or number of fixed updates per frame.
 
 In this project, fixed update is called in `didSimulatePhysics`, not in `update(_:)`. `didSimulatePhysics` is executed after SpriteKit has evaluated actions and simulated its own physics. This lets the app pass SpriteKit action or physics results into Box2D before stepping Box2D, if needed later. You may choose a different structure.
 
@@ -146,7 +149,7 @@ If we use a time scale of 2, fixed update will be called twice more often, and t
 
 If we use a time scale of 0.5 or 0.1, physics will only be updated 30 or 6 times per second, respectively. The motion will appear jagged, unless a rendering-side interpolation is added.
 
-No matter the time scale, the physics engine should produce the same result after the same number of steps, because each step still uses the same timestep. Time scale changes how often we call fixed update relative to real time. It does not change the size of each physics step.
+Regardless of time scale, the physics engine should produce the same result after the same number of steps, because each step still uses the same timestep. Time scale changes how often we call fixed update relative to real time. It does not change the size of each physics step.
 
 What happens if we change the timestep? A simulation stepped at `1/60` and a simulation stepped at `1/120` are not the same simulation. They produce different results. Many applications use `1/60` or 60Hz as default. But shorter timesteps can be very interesting. For example, in this project, switching the timestep to `1/120` on a ProMotion device makes dragging significantly more responsive.
 
@@ -160,9 +163,7 @@ Box2D determinism is truly remarkable. Given identical inputs, Box2D produces bi
 
 <img src="SpriteKit-Box2D/Media/Determinism-1.png" alt="Determinism-1" style="width:50%;" />
 
-### Setup
-
-To explore determinism, I wrote `DeterminismScene`:
+To explore determinism, I set up [`DeterminismScene`](Scenes/Determinism.swift) such as:
 
 - A new Box2D world is created each time content is reset.
 - The same bodies are recreated in the same order.
