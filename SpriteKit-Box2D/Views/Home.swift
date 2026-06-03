@@ -28,7 +28,7 @@ struct Home: View {
             )
             .ignoresSafeArea()
             .onAppear {
-                Presets.weldStack(scene)
+                Presets.stack(scene)
             }
             .onTapGesture {
                 isPresetMenuOpen = false
@@ -133,6 +133,12 @@ struct PresetMenu: View {
                     
                     Divider()
                     
+                    presetButton("Tumbler") {
+                        Presets.tumbler(scene)
+                    }
+                    
+                    Divider()
+                    
                     presetButton("Big Pile") {
                         Presets.bigPile(scene)
                     }
@@ -226,6 +232,20 @@ enum Presets {
         scene.setupBox2D(gravityY: -10)
         scene.createWalls(width: 1000)
         scene.createHorizontalChain(links: 10, linksShouldCollideWithEachOther: true, drawJoints: true)
+    }
+    
+    static func tumbler(_ scene: SpriteKit_Box2D.Scene) {
+        scene.removeContent()
+        scene.setupBox2D(gravityY: -10)
+        
+        scene.createTumbler(
+            containerRadius: 2800,
+            containerSegments: 72,
+            agitatorSize: CGSize(width: 5400, height: 100),
+            agitatorAngularVelocity: Float.pi / 3,
+            loadBodyCount: 8000,
+            loadBodySizes: [22, 26, 30, 34]
+        )
     }
     
 }
