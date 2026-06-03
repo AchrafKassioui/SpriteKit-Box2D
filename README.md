@@ -51,7 +51,7 @@ Box2D version 3 is written in C. This projects shows how to use C and Swift in t
 
 To run Box2D with SpriteKit, a [minimal scene](SpriteKit-Box2D/Scenes/MinimalSetup.swift) can be structured as follows:
 
-- Create a Box2D world. In SpriteKit, the equivalent was SKPhysicsWorld, which is automatically created with every scene.
+- Create a Box2D world. This is the equivalent of SpriteKit's SKPhysicsWorld, which is automatically created with every scene.
 - Create SpriteKit visual nodes. SpriteKit will handle rendering.
 - For each visual node, create a Box2D body with a collision shape that represents it in the simulation.
 - Link each SpriteKit node to its Box2D body. For example, create an `Entity` struct that references both, then store entities in a data structure.
