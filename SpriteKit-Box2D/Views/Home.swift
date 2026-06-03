@@ -196,8 +196,8 @@ enum Presets {
     static func bigPile(_ scene: SpriteKit_Box2D.Scene) {
         scene.removeContent()
         scene.setupBox2D(gravityY: -10)
-        scene.createWalls(width: 10000)
-        scene.createBigPile(columns: 10, rows: 700, startY: 500)
+        scene.createWalls(width: 1200)
+        scene.createBigPile(columns: 10, rows: 1000, startY: 500)
     }
     
     static func weldStack(_ scene: SpriteKit_Box2D.Scene) {

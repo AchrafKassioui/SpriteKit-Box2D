@@ -128,6 +128,8 @@ class Scene: SKScene, NavigationCameraDelegate, UIGestureRecognizerDelegate {
         var worldDef = b2DefaultWorldDef()
         worldDef.gravity = b2Vec2(x: 0, y: gravityY)
         worldDef.restitutionThreshold = 0
+        /// Enable multi threading
+        worldDef.workerCount = 4
         b2WorldId = b2CreateWorld(&worldDef)
     }
     
