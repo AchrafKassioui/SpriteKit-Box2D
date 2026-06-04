@@ -234,3 +234,5 @@ This project is licensed under the Apache License 2.0.
 
 If this project helps your work, attribution or a link back is appreciated:
 https://github.com/AchrafKassioui/SpriteKit-Box2D
+
+The Box2D source code included in this project is licensed separately under the MIT License.
