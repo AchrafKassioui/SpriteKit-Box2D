@@ -1,6 +1,6 @@
 # SpriteKit Box2D
 
-This project shows how to integrate Box2D 3.x.x with SpriteKit.
+This project shows how to integrate Box2D 3.x with SpriteKit.
 
 <img src="SpriteKit-Box2D/Media/SpriteKit-Box2D-Screenshots.png" alt="SpriteKit-Box2D-Screenshots" style="width:100%;" />
 
@@ -20,7 +20,7 @@ This project shows how to integrate Box2D 3.x.x with SpriteKit.
 - [Stack with High Restitution](https://www.achrafkassioui.com/images/SpriteKit%20-%20Box2D%20v3%20-%20High%20Restitution.mov) (83MB)
 - [Box2D Explode Effect](https://www.achrafkassioui.com/images/SpriteKit%20-%20Box2D%20v3%20-%20Explode.mov) (113MB)
 
-## How to Run
+## Getting Started
 
 - You need a Mac with Xcode, and optionally an iOS device.
 - Download this project and open it in Xcode.
@@ -30,31 +30,39 @@ This project shows how to integrate Box2D 3.x.x with SpriteKit.
 - Build and run.
 - Enjoy the amazing Box2D version 3 with SpriteKit.
 
-Try various values of the preset functions, such as:
+Try different values in the preset functions, such as:
 
 ```swift
 static func pyramid(_ scene: SpriteKit_Box2D.Scene) {
     scene.removeContent()
     scene.setupBox2D(gravityY: -10) /// Gravity strength
-    scene.createGround(width: 2000)
-    scene.createPyramid(baseCount: 7, startY: -200) /// Pyramid width and initial height
+    scene.createGround(width: 10000, startY: -300)
+    scene.createPyramid(baseCount: 50, startY: -250) /// Pyramid width and initial height
 }
 ```
 
-Or navigate to the factory functions and change them directly.
+You can also navigate to the factory functions and change them directly.
+
+## Context
+
+SpriteKit built-in physics engine is based on Box2D, likely from an older 2.x generation. This project uses Box2D 3.x directly.
+
+Box2D 3.0 was first released in 2024 as a major rewrite with a new C API. It brings improved collision handling, better performance, better stability for demanding simulations, and features that are not exposed through SpriteKit’s `SKPhysicsWorld`.
+
+Box2D 3 is also designed with determinism in mind. SpriteKit's physics implementation is nice to use, but it is not deterministic. See the [Determinism section of my SKRenderer Demo](https://github.com/AchrafKassioui/SKRenderer-Demo#determinism) for more information about determinism in SpriteKit.
 
 ## Swift & C
 
-Box2D version 3 is written in C. This projects shows how to use C and Swift in the same Xcode project. See [this tutorial on how to mix Swift with C](https://github.com/AchrafKassioui/Learning-iOS-Dev#swift--c).
+Because Box2D 3 is written in C, this sample app also shows how to mix Swift and C. I wrote a [tutorial on how to mix Swift with C](https://github.com/AchrafKassioui/Learning-iOS-Dev#swift--c) in an Xcode project.
 
-## Minimal Setup
+## Minimal Scene
 
-To run Box2D with SpriteKit, a [minimal scene](SpriteKit-Box2D/Scenes/MinimalSetup.swift) can be structured as follows:
+To setup Box2D in SpriteKit, a [minimal scene](SpriteKit-Box2D/Scenes/MinimalSetup.swift) can be structured as follows:
 
-- Create a Box2D world. This is the equivalent of SpriteKit's SKPhysicsWorld, which is automatically created with every scene.
+- Create a Box2D world. This is the equivalent of SpriteKit's SKPhysicsWorld.
 - Create SpriteKit visual nodes. SpriteKit will handle rendering.
 - For each visual node, create a Box2D body with a collision shape that represents it in the simulation.
-- Link each SpriteKit node to its Box2D body. For example, create an `Entity` struct that references both, then store entities in a data structure.
+- Link each SpriteKit node to its Box2D body. For example, create an `Entity` struct that references both, then store the entities in a data structure.
 - For each frame, step the Box2D simulation with a fixed timestep, typically 1/60 second.
 - Before SpriteKit renders the frame, get the simulation result by applying Box2D transforms to SpriteKit nodes.
 
@@ -214,6 +222,7 @@ It seems that if a body was created but did not collide with the rest of the sim
 ## References
 
 - Erin Catto, [Box2D](https://github.com/erincatto/box2d), GitHub repository.
+- Erin Catto, [Releasing Box2D 3.0](https://box2d.org/posts/2024/08/releasing-box2d-3.0/), 2024.
 - Glenn Fiedler, [Fix Your Timestep!](https://gafferongames.com/post/fix_your_timestep/), 2004. Used to implement a fixed update in SpriteKit.
 - Erin Catto, [Determinism](https://box2d.org/posts/2024/08/determinism/). Used to setup the Determinism test scene.
 - [Modules](https://clang.llvm.org/docs/Modules.html), Clang documentation.

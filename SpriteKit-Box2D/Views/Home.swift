@@ -188,15 +188,15 @@ enum Presets {
     static func stack(_ scene: SpriteKit_Box2D.Scene) {
         scene.removeContent()
         scene.setupBox2D(gravityY: -10)
-        scene.createGround(width: 2000)
+        scene.createGround(width: 2000, startY: -300)
         scene.createStack(columns: 4, rows: 6, startY: -180)
     }
     
     static func pyramid(_ scene: SpriteKit_Box2D.Scene) {
         scene.removeContent()
         scene.setupBox2D(gravityY: -10)
-        scene.createGround(width: 2000)
-        scene.createPyramid(baseCount: 7, startY: -200)
+        scene.createGround(width: 10000, startY: -300)
+        scene.createPyramid(baseCount: 10, startY: -250)
     }
     
     static func bigPile(_ scene: SpriteKit_Box2D.Scene) {
@@ -223,7 +223,7 @@ enum Presets {
     static func verticalChain(_ scene: SpriteKit_Box2D.Scene) {
         scene.removeContent()
         scene.setupBox2D(gravityY: -10)
-        scene.createGround(width: 2000)
+        scene.createGround(width: 2000, startY: -300)
         scene.createVerticalChain(linkCount: 1000, startY: -400, drawJoints: false)
     }
     

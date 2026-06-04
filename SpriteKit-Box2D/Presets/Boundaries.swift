@@ -16,9 +16,9 @@ import Box2D
 
 extension Scene {
     
-    func createGround(width: CGFloat) {
+    func createGround(width: CGFloat, startY: CGFloat) {
         let size = CGSize(width: width, height: 15)
-        let position = CGPoint(x: 0, y: -300)
+        let position = CGPoint(x: 0, y: startY)
         
         /// Visual node
         let node = SKShapeNode(rectOf: size)
